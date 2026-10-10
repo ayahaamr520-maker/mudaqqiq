@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { margin: 0; padding: 14px; width: 290px; font: 14px/1.6 "Segoe UI", Tahoma, sans-serif; color: #1d2321; }
+    h1 { font-size: 16px; margin: 0 0 2px; } .sub { color: #7c8581; font-size: 12px; margin-bottom: 12px; }
+    label { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-top: 1px solid #eee; cursor: pointer; }
+    small { display: block; color: #7c8581; font-size: 12px; }
+    .note { font-size: 12px; color: #4c5652; background: #faf8f4; border-radius: 8px; padding: 8px; margin-top: 8px; }
+    @media (prefers-color-scheme: dark) { body { background: #1a201e; color: #e9eeec; } .note { background: #161b19; color: #b5c0bb; } label { border-color: #2c3532; } }
+  </style>
+</head>
+<body>
+  <h1>مُدقِّق</h1>
+  <div class="sub">القواعد تعمل دائمًا. فعّل الذكاء الاصطناعي إن أردت:</div>
+  <label><input type="checkbox" id="aiPunct"><span>ذكاء اصطناعي: الترقيم<small>يضيف الفواصل ويفصل الجمل غير المرقّمة</small></span></label>
+  <label><input type="checkbox" id="aiSpell"><span>ذكاء اصطناعي: الإملاء والنحو<small>الهمزات، التاء المربوطة، وصل الكلمات وفصلها</small></span></label>
+  <div class="note">النموذجان داخل الإضافة نفسها ويعملان على جهازك دون إنترنت. أول فحص بعد التفعيل يستغرق بضع ثوانٍ لتحميل النموذج.</div>
+  <script src="popup.js"></script>
+</body>
+</html>

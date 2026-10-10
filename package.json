@@ -1,0 +1,14 @@
+{
+  "name": "mudaqqiq-arabic-assistant",
+  "version": "0.1.0",
+  "description": "مُدقِّق — Arabic punctuation, style and grammar assistant (prototype). Rules + in-browser AI model.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "start": "npx --yes http-server@14.1.1 . -p 8080 -c-1",
+    "build:ext": "node tools/build-extension.mjs",
+    "build:gdocs": "node tools/build-gdocs.mjs"
+  },
+  "license": "MIT"
+}

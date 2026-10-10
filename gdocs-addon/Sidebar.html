@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root { --ink:#1d2321; --ink2:#4c5652; --ink3:#7c8581; --line:#e4e0d7; --accent:#0f6b5c; --soft:#e2f1ed; --bg2:#faf8f4;
+            --punct:#2563c9; --grammar:#c2362f; --spelling:#b86a00; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 12px; font: 14px/1.6 "Segoe UI", Tahoma, Arial, sans-serif; color: var(--ink); background: #fff; }
+    h1 { font-size: 17px; margin: 0; } .sub { color: var(--ink3); font-size: 12px; }
+    .head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .logo { width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 20px; font-weight: 700; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    button { font: inherit; border: 1px solid var(--line); background: var(--bg2); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: inherit; }
+    button.primary, .apply { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    button:disabled { opacity: .45; cursor: default; }
+    label { font-size: 13px; color: var(--ink2); }
+    #msg { color: var(--ink3); font-size: 12.5px; min-height: 18px; }
+    .section { font-size: 12px; color: var(--ink3); margin: 6px 0; }
+    .card { border: 1px solid var(--line); border-right: 4px solid var(--c); border-radius: 10px; padding: 9px 10px; margin-bottom: 8px; cursor: pointer; }
+    .punctuation { --c: var(--punct); } .grammar { --c: var(--grammar); } .spelling { --c: var(--spelling); }
+    .chip { font-size: 11px; font-weight: 700; color: var(--c); } .para { font-size: 11px; color: var(--ink3); margin-inline-start: 6px; }
+    .title { font-weight: 600; margin: 2px 0 4px; }
+    .diff { font-size: 16px; } del { color: var(--grammar); background: #fbe9e7; padding: 0 3px; border-radius: 3px; }
+    ins { color: var(--accent); background: var(--soft); text-decoration: none; font-weight: 700; padding: 0 3px; border-radius: 3px; }
+    .why { font-size: 12.5px; color: var(--ink2); background: var(--bg2); border-radius: 8px; padding: 6px 8px; margin-top: 6px; white-space: pre-line; }
+    .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; } .actions button { font-size: 12.5px; padding: 3px 9px; }
+    .empty { text-align: center; color: var(--ink3); padding: 24px 8px; } .empty b { display: block; font-size: 26px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="head"><span class="logo">م</span><div><h1>مُدقِّق</h1><div class="sub">الترقيم · الأساليب · النحو · الإملاء</div></div></div>
+  <div class="row">
+    <button id="check" class="primary">فحص المستند</button>
+    <button id="fix-all" disabled>تصحيح الكل</button>
+  </div>
+  <div class="row"><label><input type="checkbox" id="live" checked> فحص الفقرة الحالية أثناء الكتابة</label></div>
+  <div id="msg"></div>
+  <div id="list"></div>
+
+  <?!= include('Engine'); ?>
+  <script>
+    var engine = Mudaqqiq.createEngine();
+    var LABEL = Mudaqqiq.CATEGORY_LABEL;
+    var ignored = new Set();
+    var findings = [];   // [{ para, text, issue }]
+    var mode = 'current';
+    var lastCurrent = '';
+    var busy = false;
+    var $ = function (s) { return document.querySelector(s); };
+    var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+
+    function run(fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return new Promise(function (resolve, reject) {
+        var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+        r[fn].apply(r, args);
+      });
+    }
+
+    function span(text, i) {
+      var a = Math.min(i.anchorStart, i.start), b = Math.max(i.anchorEnd, i.end);
+      return { before: text.slice(a, b), after: text.slice(a, i.start) + i.replacement + text.slice(i.end, b) };
+    }
+
+    function analyzeParagraph(index, text) {
+      if (!/[؀-ۿ]/.test(text)) return [];
+      return engine.analyze(text, { ignored: ignored }).issues.map(function (issue) { return { para: index, text: text, issue: issue }; });
+    }
+
+    function render() {
+      $('#fix-all').disabled = !findings.length;
+      $('#fix-all').textContent = findings.length ? 'تصحيح الكل (' + findings.length + ')' : 'تصحيح الكل';
+      if (!findings.length) { $('#list').innerHTML = '<div class="empty"><b>✓</b>لا توجد ملاحظات.</div>'; return; }
+      $('#list').innerHTML = '<div class="section">' + (mode === 'current' ? 'الفقرة الحالية' : 'المستند كاملًا') + '</div>' + findings.map(function (f, n) {
+        var i = f.issue, s = span(f.text, i);
+        return '<div class="card ' + i.category + '" data-n="' + n + '">' +
+          '<div><span class="chip">' + (LABEL[i.category] || '') + '</span>' + (mode === 'document' ? '<span class="para">الفقرة ' + (f.para + 1) + '</span>' : '') + '</div>' +
+          '<div class="title">' + esc(i.title) + '</div>' +
+          '<div class="diff"><del>' + esc(s.before) + '</del> ← <ins>' + esc(s.after) + '</ins></div>' +
+          '<div class="why" hidden>' + esc(i.explanation) + '</div>' +
+          '<div class="actions"><button class="apply" data-act="apply">✓ تطبيق التصحيح</button><button data-act="ignore">✕ تجاهل</button><button data-act="why">💡 لماذا؟</button></div>' +
+          '</div>';
+      }).join('');
+    }
+
+    function checkDocument() {
+      mode = 'document';
+      $('#msg').textContent = 'جارٍ الفحص…';
+      return run('getParagraphs').then(function (paras) {
+        findings = [];
+        paras.forEach(function (t, k) { findings = findings.concat(analyzeParagraph(k, t)); });
+        $('#msg').textContent = findings.length + ' ملاحظة في ' + paras.length + ' فقرة';
+        render();
+      });
+    }
+
+    function checkCurrent(force) {
+      return run('getCurrentParagraph').then(function (cur) {
+        if (!cur || cur.index < 0) return;
+        var key = cur.index + '|' + cur.text;
+        if (!force && key === lastCurrent) return;
+        lastCurrent = key;
+        mode = 'current';
+        findings = analyzeParagraph(cur.index, cur.text);
+        $('#msg').textContent = '';
+        render();
+      });
+    }
+
+    var recheck = function () { return mode === 'current' ? checkCurrent(true) : checkDocument(); };
+
+    $('#list').addEventListener('click', function (e) {
+      var card = e.target.closest('.card');
+      if (!card) return;
+      var f = findings[+card.dataset.n], i = f.issue;
+      var btn = e.target.closest('[data-act]');
+      var act = btn && btn.dataset.act;
+      if (act === 'why') { var w = card.querySelector('.why'); w.hidden = !w.hidden; return; }
+      if (act === 'ignore') { ignored.add(i.key); recheck(); return; }
+      if (act === 'apply') {
+        busy = true;
+        run('applyEdit', f.para, f.text, i.start, i.end, i.replacement).then(function (r) {
+          if (!r.ok) $('#msg').textContent = 'تغيّر النص منذ آخر فحص؛ أعد الفحص.';
+          return recheck();
+        }).catch(function (err) { $('#msg').textContent = 'خطأ: ' + err.message; }).then(function () { busy = false; });
+        return;
+      }
+      run('selectRange', f.para, i.anchorStart, i.anchorEnd);
+    });
+
+    $('#check').addEventListener('click', function () { checkDocument().catch(function (e) { $('#msg').textContent = 'خطأ: ' + e.message; }); });
+
+    $('#fix-all').addEventListener('click', function () {
+      var byPara = {};
+      findings.forEach(function (f) { (byPara[f.para] = byPara[f.para] || { text: f.text, edits: [] }).edits.push({ start: f.issue.start, end: f.issue.end, replacement: f.issue.replacement }); });
+      busy = true;
+      Object.keys(byPara).reduce(function (p, k) {
+        return p.then(function () { return run('applyEdits', +k, byPara[k].text, byPara[k].edits); });
+      }, Promise.resolve()).then(recheck).catch(function (e) { $('#msg').textContent = 'خطأ: ' + e.message; }).then(function () { busy = false; });
+    });
+
+    // Google Docs has no "text changed" event for add-ons, so poll the cursor's paragraph.
+    setInterval(function () { if ($('#live').checked && !busy) checkCurrent(false).catch(function () {}); }, 2500);
+    checkCurrent(true).catch(function () {});
+  </script>
+</body>
+</html>

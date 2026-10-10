@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-10",
+  "data": { "wikipedia_sentences": 600, "arcd_questions": 300, "built_with": "tools/build_eval_data.py" },
+  "runtime_seconds": 321,
+  "A_punctuation_restoration": {
+    "note": "all punctuation removed from 900 sentences, system restores it; P/R/F1 in %",
+    "rules_only": { "micro": [90.5, 59.8, 72.0], ".": [87.9, 98.3, 92.8], "،": [0, 0, 0], "؟": [100, 64.7, 78.5], "statement_end_accuracy": 98.0, "question_end_accuracy": 64.7 },
+    "model_only": { "micro": [61.2, 94.3, 74.2], ".": [96.6, 99.8, 98.2], "،": [32.7, 88.8, 47.8], "؟": [96.6, 95.3, 96.0], ":": [12.2, 42.9, 19.0], "؛": [30.8, 33.3, 32.0], "statement_end_accuracy": 99.5, "question_end_accuracy": 95.3 },
+    "hybrid": { "micro": [70.3, 89.7, 78.8], ".": [97.1, 99.8, 98.4], "،": [38.4, 74.4, 50.6], "؟": [97.6, 95.3, 96.5], ":": [29.4, 35.7, 32.3], "؛": [0, 0, 0], "statement_end_accuracy": 99.5, "question_end_accuracy": 95.3 },
+    "support": { ".": 598, "،": 383, "؟": 300, ":": 14, "؛": 12 }
+  },
+  "B_question_written_with_period": { "n": 300, "fixed_rules_only": 65.0, "fixed_hybrid": 88.0 },
+  "C_flags_on_published_wikipedia_text": {
+    "rules_per_100_sentences": 7.7,
+    "rules_by_rule": { "space-before-punct": 32, "latin-punct": 11, "spelling-dict": 1, "custom-bi-ism": 1, "space-after-punct": 1 },
+    "rules_manual_review": "46/46 are real mistakes in the Wikipedia text",
+    "ai_spelling_per_100_sentences": 10.3,
+    "ai_spelling_manual_review": "50 of 62 are real mistakes in the Wikipedia text (80.6%); 12 wrong (5 proper names, 7 model errors)"
+  },
+  "D_injected_spelling_mistakes": {
+    "injected": 1109,
+    "rules_only": { "fixed_percent": 29.9, "new_changes_per_100_sentences": 1.5 },
+    "rules_plus_spelling_model": { "fixed_percent": 88.7, "new_changes_per_100_sentences": 11.8 },
+    "by_kind_fixed_percent": {
+      "hamza dropped (أن→ان), n=256": { "rules": 28.9, "with_model": 89.8 },
+      "ta marbuta as ha (مدرسة→مدرسه), n=506": { "rules": 0, "with_model": 86.0 },
+      "hamzat wasl written as qat' (الاستخدام→الإستخدام), n=52": { "rules": 80.8, "with_model": 90.4 },
+      "prefix split off (والطلاب→و الطلاب), n=79": { "rules": 0, "with_model": 70.9 },
+      "ya written as alef maqsura (في→فى), n=216": { "rules": 100, "with_model": 100 }
+    }
+  }
+}

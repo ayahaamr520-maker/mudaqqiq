@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>Word add-in (mock)</title>
+  <link rel="stylesheet" href="../web/styles.css">
+  <script>
+    // Minimal in-memory stand-in for Office.js / Word API, enough to exercise
+    // word-addin/taskpane.js outside Word. The "document" is window.DOC.
+    window.DOC = ['كيف حالك.', 'إن الطالبات مجتهدون.', 'English paragraph.', 'يا محمد ادرس دروسك'];
+    const para = (n) => ({
+      get text() { return DOC[n]; },
+      load() {},
+      search(find, { matchCase } = {}) {
+        const items = [];
+        for (let k = DOC[n].indexOf(find); k !== -1; k = DOC[n].indexOf(find, k + 1)) {
+          const at = k;
+          items.push({
+            insertText(t) { DOC[n] = DOC[n].slice(0, at) + t + DOC[n].slice(at + find.length); },
+            select() { window.SELECTED = [n, at, find]; },
+          });
+        }
+        return { items, load() {} };
+      },
+    });
+    window.Office = {
+      HostType: { Word: 'Word' },
+      EventType: { DocumentSelectionChanged: 'sel' },
+      onReady: (cb) => setTimeout(() => cb({ host: 'Word' }), 0),
+      context: { document: { addHandlerAsync() {} } },
+    };
+    window.Word = {
+      run: async (fn) => fn({
+        sync: async () => {},
+        document: {
+          body: { paragraphs: { load() {}, get items() { return DOC.map((_, n) => para(n)); } } },
+          getSelection: () => ({ paragraphs: { getFirst: () => para(0) } }),
+        },
+      }),
+    };
+  </script>
+</head>
+<body>
+  <div class="pane">
+    <div class="row">
+      <button id="check" class="btn primary">فحص المستند</button>
+      <button id="fix-all" class="btn" disabled>تصحيح الكل</button>
+    </div>
+    <label><input type="checkbox" id="live" checked> live</label>
+    <label><input type="checkbox" id="ai"> ai</label>
+    <div id="msg"></div>
+    <div id="list"></div>
+  </div>
+  <script type="module" src="../word-addin/taskpane.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><title>Google Docs add-on (mock)</title>
+<style>body{font:14px Tahoma;margin:0;display:flex;gap:12px;padding:12px} iframe{width:340px;height:640px;border:1px solid #ccc} pre{white-space:pre-wrap;flex:1}</style></head>
+<body>
+  <iframe id="pane"></iframe>
+  <pre id="doc"></pre>
+  <script>
+    // In-memory stand-in for Code.gs + google.script.run, to test Sidebar.html outside Google.
+    window.DOC = ['كيف حالك.', 'إن الطالبات مجتهدون.', 'English paragraph.', 'يا محمد ادرس دروسك'];
+    window.CURSOR = 0;
+    const server = {
+      getParagraphs: () => DOC.slice(),
+      getCurrentParagraph: () => ({ index: CURSOR, text: DOC[CURSOR] }),
+      applyEdit: (i, exp, s, e, r) => (DOC[i] !== exp ? { ok: false } : ((DOC[i] = DOC[i].slice(0, s) + r + DOC[i].slice(e)), { ok: true })),
+      applyEdits: (i, exp, edits) => {
+        if (DOC[i] !== exp) return { ok: false };
+        edits.sort((a, b) => b.start - a.start).forEach((x) => (DOC[i] = DOC[i].slice(0, x.start) + x.replacement + DOC[i].slice(x.end)));
+        return { ok: true };
+      },
+      selectRange: (i, s, e) => { window.SELECTED = [i, s, e]; },
+    };
+    const show = () => (document.getElementById('doc').textContent = DOC.join('\n'));
+    function makeRun() {
+      const make = (ok, fail) => new Proxy({}, {
+        get: (_, name) => {
+          if (name === 'withSuccessHandler') return (f) => make(f, fail);
+          if (name === 'withFailureHandler') return (f) => make(ok, f);
+          return (...args) => setTimeout(() => { try { const r = server[name](...args); show(); ok && ok(r); } catch (e) { fail && fail(e); } }, 10);
+        },
+      });
+      return make(null, null);
+    }
+    (async () => {
+      let html = await (await fetch('../gdocs-addon/Sidebar.html', { cache: 'no-store' })).text();
+      const engine = await (await fetch('../gdocs-addon/Engine.html', { cache: 'no-store' })).text();
+      html = html.replace("<?!= include('Engine'); ?>", () => engine);
+      const frame = document.getElementById('pane');
+      // google.script.run must exist before the sidebar's own script runs
+      frame.srcdoc = html.replace('<head>', '<head><script>window.google={script:{get run(){return parent.makeRunFor()}}};<\/script>');
+      window.makeRunFor = makeRun;
+      show();
+    })();
+  </script>
+</body>
+</html>

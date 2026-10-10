@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>مُدقِّق — تقييم الدقة</title>
+  <link rel="icon" href="../web/favicon.png">
+  <link rel="stylesheet" href="../web/styles.css">
+  <style>
+    main { max-width: 980px; margin: 0 auto; padding: 0 20px 40px; }
+    section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin: 14px 0; box-shadow: var(--shadow); }
+    h2 { font-size: 17px; margin: 0 0 4px; }
+    p.desc { color: var(--ink-2); margin: 0 0 10px; font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: center; }
+    th:first-child, td:first-child { text-align: right; }
+    th { color: var(--ink-3); font-weight: 600; }
+    .big { font-size: 26px; font-weight: 700; color: var(--accent); }
+    .kpis { display: flex; gap: 14px; flex-wrap: wrap; }
+    .kpi { flex: 1 1 180px; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+    .kpi .lbl { font-size: 12.5px; color: var(--ink-3); }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    progress { width: 260px; }
+    details { font-size: 13px; } details li { margin: 4px 0; }
+    .muted { color: var(--ink-3); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="brand"><span class="logo">م</span><div><h1>تقييم دقة مُدقِّق</h1><p>يُشغِّل القواعد والنموذجين على بيانات حقيقية ويحسب الدقة — داخل المتصفح</p></div></div></header>
+  <main>
+    <section>
+      <div class="row">
+        <button id="run" class="btn primary">تشغيل التقييم</button>
+        <label class="muted"><input type="checkbox" id="quick"> سريع (100 جملة فقط)</label>
+        <progress id="prog" value="0" max="1" hidden></progress><span id="stage" class="muted"></span>
+        <span class="spacer"></span>
+        <button id="dl" class="btn ghost" disabled>تنزيل النتائج (JSON)</button>
+      </div>
+      <p class="muted" id="info"></p>
+    </section>
+    <div id="out"></div>
+  </main>
+  <script type="module">
+    import { runEval } from './eval.js';
+    const $ = (s) => document.querySelector(s);
+    const pct = (x) => (x == null ? '—' : (100 * x).toFixed(1) + '%');
+    const data = await (await fetch('./data.json')).json();
+    $('#info').textContent = `البيانات: ${data.wikipedia.length} جملة من ويكيبيديا العربية + ${data.questions.length} سؤالًا حقيقيًا من ARCD (بُنيت ${data.built}). أول تشغيل يُحمِّل النموذجين (~270 م.ب).`;
+    let last = null;
+
+    $('#run').onclick = async () => {
+      $('#run').disabled = true;
+      $('#prog').hidden = false;
+      $('#stage').textContent = 'تحميل النموذجين…';
+      const local = (name) => new URL(`../web/models/${name}/`, location.href).href;
+      const [{ createPunctuationProvider }, { createSpellingProvider }] = await Promise.all([import('../engine/ai/punctuation-model.js'), import('../engine/ai/spelling-model.js')]);
+      const punctProvider = await createPunctuationProvider({ localPath: local('arabic-punctuation') }).catch((e) => (console.error(e), null));
+      const spellProvider = await createSpellingProvider({ localPath: local('arabic-spelling') }).catch((e) => (console.error(e), null));
+      const t0 = performance.now();
+      last = await runEval({
+        data, punctProvider, spellProvider, limit: $('#quick').checked ? 100 : Infinity,
+        onProgress: (f, what) => { $('#prog').value = f; $('#stage').textContent = `المرحلة ${what} — ${Math.round(f * 100)}%`; },
+      });
+      last.seconds = Math.round((performance.now() - t0) / 1000);
+      last.models = { punctuation: !!punctProvider, spelling: !!spellProvider };
+      window.EVAL_RESULT = last;
+      render(last);
+      $('#stage').textContent = `انتهى في ${last.seconds} ثانية`;
+      $('#run').disabled = false;
+      $('#dl').disabled = false;
+    };
+    $('#dl').onclick = () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(last, null, 1)], { type: 'application/json' }));
+      a.download = 'mudaqqiq-eval-results.json';
+      a.click();
+    };
+
+    function render(r) {
+      const R = r.restoration;
+      const sys = { rules: 'القواعد فقط', model: 'النموذج فقط', hybrid: 'القواعد + النموذج' };
+      const marks = ['.', '،', '؟', ':', '؛'];
+      $('#out').innerHTML = `
+      <section>
+        <h2>أ. إعادة علامات الترقيم</h2>
+        <p class="desc">حُذفت كل علامات الترقيم من ${r.n.wikipedia + r.n.questions} جملة ثم طُلب من النظام إعادتها. F1 = متوسط الدقة والاستدعاء (كلما ارتفع كان أفضل).</p>
+        <table><tr><th>النظام</th>${marks.map((m) => `<th>«${m}» F1</th>`).join('')}<th>الكل F1</th><th>نهاية الخبر</th><th>نهاية السؤال</th></tr>
+        ${Object.entries(R).map(([k, v]) => `<tr><td>${sys[k]}</td>${marks.map((m) => `<td>${pct(v.all.per[m].f1)}<div class="muted">${v.all.per[m].support}</div></td>`).join('')}<td><b>${pct(v.all.micro.f1)}</b></td><td>${pct(v.statementsEnd)}</td><td>${pct(v.questionsEnd)}</td></tr>`).join('')}
+        </table>
+        <p class="muted">الرقم الصغير = عدد مرات ظهور العلامة في البيانات.</p>
+      </section>
+      <section>
+        <h2>ب. سؤال انتهى بنقطة بدل «؟»</h2>
+        <p class="desc">${r.wrongEndMark.n} سؤالًا حقيقيًا كُتبت بنقطة في آخرها (مثل «كيف حالك.»). النسبة = كم سؤالًا صُحِّح إلى «؟».</p>
+        <div class="kpis"><div class="kpi"><div class="lbl">القواعد فقط</div><div class="big">${pct(r.wrongEndMark.rules)}</div></div><div class="kpi"><div class="lbl">القواعد + النموذج</div><div class="big">${pct(r.wrongEndMark.hybrid)}</div></div></div>
+      </section>
+      <section>
+        <h2>ج. التنبيهات الخاطئة على نص صحيح</h2>
+        <p class="desc">عدد الاقتراحات على ${r.falseAlarms.sentences} جملة منشورة في ويكيبيديا (يُفترض أنها صحيحة غالبًا؛ وبعض التنبيهات قد تكون أخطاء حقيقية في ويكيبيديا).</p>
+        <div class="kpis"><div class="kpi"><div class="lbl">القواعد: تنبيه لكل 100 جملة</div><div class="big">${r.falseAlarms.rulesPer100.toFixed(1)}</div><div class="muted">${Object.entries(r.falseAlarms.rulesByRule).map(([k, v]) => `${k}: ${v}`).join(' · ') || '—'}</div></div>
+        <div class="kpi"><div class="lbl">الذكاء الاصطناعي: تنبيه لكل 100 جملة</div><div class="big">${r.falseAlarms.aiPer100.toFixed(1)}</div><div class="muted">${Object.entries(r.falseAlarms.aiByRule).map(([k, v]) => `${k}: ${v}`).join(' · ') || '—'}</div></div></div>
+        <details><summary>أمثلة للمراجعة اليدوية</summary><ul>${r.falseAlarms.examples.map((e) => `<li><code>${e.rule}</code> «${e.from}» ← «${e.to}» — <span class="muted">${e.sentence}</span></li>`).join('')}</ul></details>
+      </section>
+      <section>
+        <h2>د. أخطاء إملائية مُدخَلة عمدًا</h2>
+        <p class="desc">أُدخل ${r.spelling.injected} خطأً شائعًا في جمل صحيحة، ثم قيس كم خطأً صُحِّح، وكم خطأً جديدًا أدخله النظام.</p>
+        <div class="kpis">
+          <div class="kpi"><div class="lbl">القواعد فقط: نسبة التصحيح</div><div class="big">${pct(r.spelling.rules.fixRate)}</div><div class="muted">أخطاء جديدة: ${r.spelling.rules.newErrorsPer100.toFixed(1)} لكل 100 جملة</div></div>
+          <div class="kpi"><div class="lbl">القواعد + نموذج الإملاء: نسبة التصحيح</div><div class="big">${pct(r.spelling.withAI?.fixRate)}</div><div class="muted">أخطاء جديدة: ${r.spelling.withAI ? r.spelling.withAI.newErrorsPer100.toFixed(1) : '—'} لكل 100 جملة</div></div>
+        </div>
+        <table style="margin-top:10px"><tr><th>نوع الخطأ</th><th>العدد</th><th>القواعد</th><th>+ النموذج</th></tr>
+        ${r.spelling.byKind.map((k) => `<tr><td>${k.name}</td><td>${k.n}</td><td>${pct(k.rules)}</td><td>${pct(k.ai)}</td></tr>`).join('')}</table>
+      </section>`;
+    }
+  </script>
+</body>
+</html>

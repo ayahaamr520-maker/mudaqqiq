@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "مُدقِّق — Arabic writing assistant",
+  "short_name": "مدقق",
+  "version": "0.2.0",
+  "description": "يكتشف أخطاء الترقيم والأساليب والنحو والإملاء في النص العربي أثناء الكتابة في أي موقع، ويشرح سبب التصحيح.",
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "128": "icons/icon-128.png" },
+  "action": { "default_popup": "popup.html", "default_title": "مُدقِّق" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage", "offscreen"],
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle", "all_frames": true }
+  ],
+  "web_accessible_resources": [
+    { "resources": ["engine/*.js", "engine/ai/*.js"], "matches": ["<all_urls>"] }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>مُدقِّق — مساعد الكتابة العربية</title>
+  <meta name="description" content="مساعد للكتابة العربية يكتشف أخطاء الترقيم والأساليب والنحو ويشرح سبب التصحيح — يعمل بالكامل داخل المتصفح.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" href="favicon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">م</span>
+      <div>
+        <h1>مُدقِّق</h1>
+        <p>مساعد الكتابة العربية: الترقيم، والأساليب، والنحو — مع شرح سبب كل تصحيح</p>
+      </div>
+    </div>
+    <span class="privacy" title="لا يُرسَل أي نص إلى خادم؛ القواعد والنموذج يعملان داخل المتصفح.">🔒 يعمل داخل متصفحك</span>
+  </header>
+
+  <main class="layout">
+    <section class="editor-card" aria-label="المحرر">
+      <div class="toolbar">
+        <label class="select">
+          <span>أمثلة</span>
+          <select id="samples">
+            <option value="">— اختر نصًّا تجريبيًّا —</option>
+            <option value="brief">أمثلة من فكرة المشروع</option>
+            <option value="raw">نص بلا علامات ترقيم (للذكاء الاصطناعي)</option>
+            <option value="grammar">أخطاء نحوية وإملائية</option>
+            <option value="spelling">أخطاء إملائية (لنموذج الإملاء)</option>
+            <option value="styles">الأساليب الاثنان والعشرون</option>
+            <option value="marks">علامات الترقيم (تنصيص، أقواس، شرطة…)</option>
+          </select>
+        </label>
+        <button id="ai-punct" class="btn ai" aria-pressed="false" title="نموذج AraBERT لعلامات الترقيم (135 م.ب، يُحمَّل مرة واحدة)">
+          <span class="dot"></span><span class="label">ذكاء اصطناعي: الترقيم</span>
+        </button>
+        <button id="ai-spell" class="btn ai" aria-pressed="false" title="نموذج CAMeL للإملاء والنحو (135 م.ب، يُحمَّل مرة واحدة)">
+          <span class="dot"></span><span class="label">ذكاء اصطناعي: الإملاء والنحو</span>
+        </button>
+        <span class="spacer"></span>
+        <button id="fix-all" class="btn primary" disabled>تصحيح الكل</button>
+        <button id="copy" class="btn ghost" title="نسخ النص">نسخ</button>
+        <button id="clear" class="btn ghost" title="مسح النص">مسح</button>
+      </div>
+      <div id="ai-progress" class="ai-progress" hidden><div class="bar"></div><span class="txt"></span></div>
+
+      <div class="editor">
+        <div class="backdrop" aria-hidden="true"><div class="highlights" id="highlights"></div></div>
+        <textarea id="input" spellcheck="false" autocomplete="off" placeholder="اكتب هنا… مثلًا: كيف حالك."></textarea>
+      </div>
+
+      <div class="statusbar" id="status"></div>
+    </section>
+
+    <aside class="panel" aria-label="الاقتراحات">
+      <div class="tabs" role="tablist">
+        <button role="tab" class="tab active" data-tab="issues" aria-selected="true">الاقتراحات <span class="count" id="issue-count">0</span></button>
+        <button role="tab" class="tab" data-tab="styles" aria-selected="false">الأساليب</button>
+        <button role="tab" class="tab" data-tab="guide" aria-selected="false">الدليل</button>
+      </div>
+      <div class="tab-body" id="tab-issues"></div>
+      <div class="tab-body" id="tab-styles" hidden></div>
+      <div class="tab-body" id="tab-guide" hidden></div>
+    </aside>
+  </main>
+
+  <div id="popover" class="popover" role="dialog" aria-live="polite" hidden></div>
+
+  <footer class="foot">
+    نموذج أولي لمشروع جامعي · القواعد قابلة للتوسعة (<code>engine/custom-rules.js</code>) · نموذج الترقيم: AraBERT (MIT) يعمل عبر ONNX في المتصفح
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
