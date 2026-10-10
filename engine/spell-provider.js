@@ -11,7 +11,7 @@ import { fineTokens, explainChange } from './ai/spelling-diff.js';
 
 const ARABIC_WORD = /^[ء-يً-ْـ]{2,}$/;
 const SUSPICIOUS = -9.5;  // a known word scoring below this in context gets a second look
-const MARGIN = 5;         // a candidate must beat the typed word by this much to flag a real word
+const MARGIN = 8;         // a candidate must beat the typed word by this much to flag a real word (tuned on Wikipedia, see docs/EVALUATION.md)
 const COMMON_RANK = 2000; // the 2,000 most common words (في، من، على…) are never second-guessed
 
 export function createSpellProvider({ lexicon, scorer = null } = {}) {
@@ -24,7 +24,8 @@ export function createSpellProvider({ lexicon, scorer = null } = {}) {
       for (const s of doc.sentences) {
         if (!/[ء-ي]/.test(s.text)) continue;
         const toks = fineTokens(s.text, s.start);
-        const words = toks.map((t) => t.text);
+        // the context model scores words without vowel marks (tanween etc. confuse it)
+        const words = toks.map((t) => plain(t.text));
         const unknown = [];
         const known = [];
         const variants = [];
@@ -59,11 +60,11 @@ export function createSpellProvider({ lexicon, scorer = null } = {}) {
         let suspicious = [];
         if (provider.scorer) {
           // one batched call: how well does each known word fit where it is?
-          const own = known.length ? await provider.scorer.scoreMany(words, known.map((k) => ({ i: k.i, candidates: [k.t.text], withNext: false }))) : [];
+          const own = known.length ? await provider.scorer.scoreMany(words, known.map((k) => ({ i: k.i, candidates: [k.p], withNext: false }))) : [];
           suspicious = known.filter((k, n) => own[n][0].own <= SUSPICIOUS)
             .map((k) => ({ ...k, cands: lexicon.candidates(k.p, { limit: 200 }) }))
             .filter((k) => k.cands.length);
-          ctx = await rankAll(provider.scorer, words, [...unknown, ...suspicious.map((k) => ({ ...k, typed: k.t.text }))]);
+          ctx = await rankAll(provider.scorer, words, [...unknown, ...suspicious.map((k) => ({ ...k, typed: k.p }))]);
         }
         unknown.forEach((u, n) => {
           const ranked = provider.scorer ? ctx[n].ranked.map((x) => x.word) : rankByDictionary(u.p, u.cands);

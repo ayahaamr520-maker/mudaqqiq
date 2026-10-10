@@ -65,10 +65,33 @@ The hand review found four rule false-alarms in an earlier run («أي» meaning
 
 Other changes made to the sentences: 1.5 per 100 sentences with rules, 11.8 with the model. Section C shows that roughly 4 in 5 of those are real Wikipedia mistakes being corrected, not new errors.
 
+### E. Typos (added 11 Oct)
+One realistic typo per sentence, injected into correct Wikipedia sentences (`eval/typos.js`, fixed seed): a dropped letter, a doubled letter, two swapped letters, or the neighbouring key on the Arabic keyboard. "Corrected" = the first suggestion is exactly the original word.
+
+| System | Sentences | Typo flagged | Corrected exactly | False flags per 1,000 words |
+|---|---|---|---|---|
+| Dictionary only (all 600) | 599 | 64.6% | 59.8% | 5.3 |
+| Dictionary only (first 200) | 200 | 64.5% | 59.5% | 5.2 |
+| **Dictionary + context model** (first 200) | 200 | **85.0%** | **82.0%** | 6.1 |
+
+By typo type (corrected exactly, first 200 sentences):
+
+| Typo | Dictionary | + Context |
+|---|---|---|
+| Dropped letter | 25.5% | **68.6%** |
+| Doubled letter | 75.5% | **87.8%** |
+| Swapped letters | 65.3% | **83.7%** |
+| Neighbouring key | 72.5% | **88.2%** |
+
+- A dropped letter often produces another real word («الآلية» → «الآلة», «بالقرب» → «بالرب»). The dictionary can't see those; the context model can («بالرب» → «بالقرب», «السفاد» → «الفساد», and the motivating example «كيف حاك؟» → «حالك»).
+- The context model's threshold (a candidate must beat the written word by 8 log-points, words scored without vowel marks) was tuned on 100 held-out Wikipedia sentences: at 5 it raised 13.5 false flags per 1,000 words, at 8 about 4 (of which three were real errors in Wikipedia). The remaining false flags are mostly names and rare words («الداروني»، «شاحبة»).
+- Speed: about 2–5 seconds per new sentence with the context model on (in a background thread); the dictionary is instant.
+
 ## 4. What this means
 
 - **Punctuation:** end marks are excellent (≥ 95%). The comma suggestions are useful but should be read as suggestions.
 - **Spelling:** the AI model is the big win, fixing 89% of common mistakes against 30% for rules alone, at about 81% precision.
+- **Typos:** the dictionary corrects 60% of typos on its own; with the context model 82%, including real words in the wrong place («كيف حاك؟» → «حالك»).
 - **Grammar** (agreement, إنّ and its sisters, demonstratives, الذي/التي) is covered by a small set of rules that rarely misfire. It isn't measured here because no suitable public test set with those errors exists. `npm test` has hand-made cases.
 
 ## 5. Settings chosen from this evaluation

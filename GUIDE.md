@@ -258,6 +258,7 @@ The **الدليل** (Guide) tab on the website lists every style and every mark
 | Common spelling mistakes fixed (1,109 injected) | **88.7%** with the AI model (rules alone: 30%) |
 | AI spelling suggestions on published Wikipedia text that were real mistakes (checked by hand) | **81%** (50 of 62) |
 | Rule suggestions on published Wikipedia text that were real mistakes | **46 of 46** |
+| Typos corrected (dropped / doubled / swapped letter, neighbouring key) | **60%** with the dictionary alone, **82%** with the context model |
 
 **Known limits:** Arabic without diacritics is sometimes truly ambiguous («ما ذهبت» could be a statement or a question), so the tool stays quiet or lets the AI decide. The AI can stumble on proper names. Grammar rules cover the cases listed above, not full إعراب. It's a prototype.
 
