@@ -302,31 +302,26 @@ Or give them a public link (section 10). Then they need nothing at all.
 
 ## 10. Putting it online (a public link)
 
-Gives a link like `https://yourname.github.io/mudaqqiq/` that works for anyone, with no installation and no server running on your laptop.
+The repository has a GitHub Action (`.github/workflows/pages.yml`) that publishes the website automatically. On every push to `main` it:
 
-**Step 1: upload the AI models to Hugging Face** (GitHub Pages refuses files over 100 MB)
-1. Create a free account at <https://huggingface.co>, then **Settings → Access Tokens → Create new token** (type **Write**).
-2. In a terminal inside the project folder:
-   ```
-   pip install huggingface_hub
-   huggingface-cli login
-   python tools/upload_to_hf.py YOUR-HF-USERNAME
-   ```
-   This creates two public model pages (credit to the original authors included).
+1. runs the tests,
+2. rebuilds the two AI models from Hugging Face (only the first time; after that they're cached),
+3. points the Word add-in at the live address,
+4. publishes the site to **https://ayahaamr520-maker.github.io/mudaqqiq/**.
 
-**Step 2: put the project on GitHub Pages**
-1. Create a GitHub repository (e.g. `mudaqqiq`) and upload the project folder. The large model files are excluded automatically by `.gitignore`.
-2. In the repository: **Settings → Pages → Deploy from a branch → main → / (root) → Save**. After a minute the site is live at `https://YOUR-GITHUB-USERNAME.github.io/mudaqqiq/`.
+**One-time setup** (the repository is private, so this needs GitHub Pro):
+1. Upgrade the account to **GitHub Pro**: github.com → Settings → Billing and plans → Upgrade.
+2. In the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. Go to the **Actions** tab → **Deploy website** → **Run workflow** (or just push any change).
 
-**Step 3: point everything at the public addresses (one command)**
-```
-node tools/configure-public.mjs --site https://YOUR-GITHUB-USERNAME.github.io/mudaqqiq --hf YOUR-HF-USERNAME
-```
-Upload the two changed files (`web/config.js`, `word-addin/manifest.xml`) to GitHub again. Now:
-- the website and the accuracy page load the models from Hugging Face;
-- anyone can upload `word-addin/manifest.xml` in Word (section 2, steps 3–5) **without** running the server.
+The first run takes about 10 minutes (building the models); later runs take 1–2 minutes. After that:
+- **Website:** https://ayahaamr520-maker.github.io/mudaqqiq/web/
+- **Accuracy test:** https://ayahaamr520-maker.github.io/mudaqqiq/eval/
+- **Word add-in for anyone:** download `word-addin/manifest.xml` from https://ayahaamr520-maker.github.io/mudaqqiq/word-addin/manifest.xml and upload it in Word (section 2, steps 3–5). No server on your laptop is needed.
 
----
+> The code stays private; the published website itself is public (anyone with the link can use it).
+
+**Alternative without the Action:** upload the models to Hugging Face and point the site at them (`python tools/upload_to_hf.py YOUR-HF-USERNAME`, then `node tools/configure-public.mjs --hf YOUR-HF-USERNAME --site https://…`). This is only needed if you host the site somewhere other than GitHub Pages.
 
 ## 11. Troubleshooting
 
