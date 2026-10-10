@@ -42,6 +42,9 @@
   </main>
   <script type="module">
     import { runEval } from './eval.js';
+    import { runTypoEval } from './typos.js';
+    import { createLexicon } from '../engine/spell.js';
+    import { createSpellProvider } from '../engine/spell-provider.js';
     const $ = (s) => document.querySelector(s);
     const pct = (x) => (x == null ? '—' : (100 * x).toFixed(1) + '%');
     const data = await (await fetch('./data.json')).json();
@@ -61,6 +64,18 @@
         data, punctProvider, spellProvider, limit: $('#quick').checked ? 100 : Infinity,
         onProgress: (f, what) => { $('#prog').value = f; $('#stage').textContent = `المرحلة ${what} — ${Math.round(f * 100)}%`; },
       });
+      // E. typos: dictionary alone (all sentences) and with the context model (first 200)
+      const lexicon = createLexicon(await (await fetch('../web/data/ar-words.txt')).text());
+      $('#stage').textContent = 'المرحلة E — الأخطاء الكتابية (المعجم)';
+      last.typos = { dictionary: await runTypoEval({ sentences: data.wikipedia, spell: createSpellProvider({ lexicon }), limit: $('#quick').checked ? 100 : Infinity }) };
+      const { createContextScorer } = await import('../engine/ai/context-model.js');
+      const scorer = await createContextScorer({ localPath: local('arabic-context') }).catch((e) => (console.error(e), null));
+      if (scorer) {
+        last.typos.context = await runTypoEval({
+          sentences: data.wikipedia, spell: createSpellProvider({ lexicon, scorer }), limit: $('#quick').checked ? 50 : 200,
+          onProgress: (f) => { $('#stage').textContent = `المرحلة E — الأخطاء الكتابية (المعجم + السياق) ${Math.round(f * 100)}%`; },
+        });
+      }
       last.seconds = Math.round((performance.now() - t0) / 1000);
       last.models = { punctuation: !!punctProvider, spelling: !!spellProvider };
       window.EVAL_RESULT = last;
@@ -101,6 +116,15 @@
         <div class="kpi"><div class="lbl">الذكاء الاصطناعي: تنبيه لكل 100 جملة</div><div class="big">${r.falseAlarms.aiPer100.toFixed(1)}</div><div class="muted">${Object.entries(r.falseAlarms.aiByRule).map(([k, v]) => `${k}: ${v}`).join(' · ') || '—'}</div></div></div>
         <details><summary>أمثلة للمراجعة اليدوية</summary><ul>${r.falseAlarms.examples.map((e) => `<li><code>${e.rule}</code> «${e.from}» ← «${e.to}» — <span class="muted">${e.sentence}</span></li>`).join('')}</ul></details>
       </section>
+      ${r.typos ? `<section>
+        <h2>هـ. أخطاء الكتابة (حرف ناقص، مكرر، متبادل، مفتاح مجاور)</h2>
+        <p class="desc">خطأ كتابي واحد في كل جملة صحيحة. «اكتُشف» = ظهر عليه تنبيه، «صُحّح» = كان الاقتراح الأول هو الكلمة الأصلية.</p>
+        <table><tr><th>النظام</th><th>جمل</th><th>اكتُشف</th><th>صُحّح</th><th>تنبيهات خاطئة لكل 1000 كلمة</th></tr>
+        ${[['المعجم فقط', r.typos.dictionary], ['المعجم + نموذج السياق', r.typos.context]].filter(([, x]) => x).map(([n, x]) => `<tr><td>${n}</td><td>${x.n}</td><td>${pct(x.flaggedRate)}</td><td>${pct(x.fixedRate)}</td><td>${x.falseFlagsPer1000Words.toFixed(1)}</td></tr>`).join('')}
+        </table>
+        <table style="margin-top:10px"><tr><th>نوع الخطأ</th>${['المعجم فقط', 'المعجم + السياق'].map((h) => `<th>${h}: صُحّح</th>`).join('')}</tr>
+        ${r.typos.dictionary.byKind.map((k, j) => `<tr><td>${k.name}</td><td>${pct(k.fixedRate)}</td><td>${r.typos.context ? pct(r.typos.context.byKind[j].fixedRate) : '—'}</td></tr>`).join('')}</table>
+      </section>` : ''}
       <section>
         <h2>د. أخطاء إملائية مُدخَلة عمدًا</h2>
         <p class="desc">أُدخل ${r.spelling.injected} خطأً شائعًا في جمل صحيحة، ثم قيس كم خطأً صُحِّح، وكم خطأً جديدًا أدخله النظام.</p>

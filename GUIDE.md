@@ -82,15 +82,19 @@ Double-click **`1-start-website.bat`**. Your browser opens **http://localhost:80
 - **أمثلة** (Examples) loads ready-made sample texts, including «الأساليب الاثنان والعشرون» (one sentence per style) and «علامات الترقيم» (one mistake per mark).
 - **نسخ** copies the text; **مسح** clears it.
 
+### Spell check (always on)
+A dictionary of about 530,000 Arabic words loads automatically when the page opens (a few seconds the first time). It flags words that don't exist and suggests the closest real word, e.g. «مفيذ» → «مفيد», «جمييع» → «جميع», «ياصديقي» → «يا صديقي». A card can offer more than one suggestion: click **أو: …** to pick another.
+
 ### Turn on the AI models
-There are two buttons. Each loads one model (about 135 MB each). The **first time** takes a minute (a purple bar shows progress); after that the browser keeps a copy and it's instant.
+There are three buttons. Each loads one model (135–185 MB). The **first time** takes a minute (a purple bar shows progress); after that the browser keeps a copy. The models run in the background, so typing never freezes.
 
 | Button | What it adds | Try the example |
 |---|---|---|
 | **ذكاء اصطناعي: الترقيم** | Missing commas and colons, and splitting text that has **no punctuation at all** into sentences | «نص بلا علامات ترقيم» |
 | **ذكاء اصطناعي: الإملاء والنحو** | Hamza (انا → أنا), ta marbuta (مدرسه → مدرسة), joined/split words (ب الصحة → بالصحة، ياشباب → يا شباب), and some grammar | «أخطاء إملائية» |
+| **ذكاء اصطناعي: السياق** | Real words used by mistake, judged from the sentence: «كيف حاك؟» → «كيف حالك؟». Also picks the best spell-check suggestion by meaning («الطاب مجتهد» → «الطالب»). Takes 2–3 seconds per new sentence. | «أخطاء كتابة» |
 
-Click a button again to turn it off. The rules keep working either way.
+Click a button again to turn it off. The rules and the dictionary keep working either way.
 
 ### Stop it
 Close the black window.
@@ -238,6 +242,8 @@ The **الدليل** (Guide) tab on the website lists every style and every mark
 | كان الجو جميل *(AI)* | كان الجو **جميلًا** (خبر كان منصوب) |
 
 ### Spelling
+- **Dictionary (always on):** words that don't exist (a letter missing, doubled, swapped or the neighbouring key: «مفيذ» → «مفيد»، «جمييع» → «جميع»), and common misspellings that are far rarer than the correct form («المدرسه» → «المدرسة»).
+- **Context model:** real words in the wrong place («كيف حاك؟» → «حالك»).
 - **Rules:** missing hamza in common words (انا ← أنا، الى ← إلى، اذا ← إذا …), hamzat wasl (الإهتمام ← الاهتمام), انشاء الله ← إن شاء الله, هاذا ← هذا, فى ← في …
 - **AI model:** hamza in any word, ta marbuta (السياره ← السيارة), joined words (و لا ← ولا، ف ي ← في), split words (ياشباب ← يا شباب), and more. Each correction comes with an explanation of the rule behind it.
 
@@ -309,8 +315,8 @@ The repository has a GitHub Action (`.github/workflows/pages.yml`) that publishe
 3. points the Word add-in at the live address,
 4. publishes the site to **https://ayahaamr520-maker.github.io/mudaqqiq/**.
 
-**One-time setup** (already done for ayahaamr520-maker/mudaqqiq):
-1. The repository is public, so GitHub Pages is free.
+**One-time setup** (the repository is private, so this needs GitHub Pro):
+1. Upgrade the account to **GitHub Pro**: github.com → Settings → Billing and plans → Upgrade.
 2. In the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. Go to the **Actions** tab → **Deploy website** → **Run workflow** (or just push any change).
 
@@ -319,7 +325,7 @@ The first run takes about 10 minutes (building the models); later runs take 1–
 - **Accuracy test:** https://ayahaamr520-maker.github.io/mudaqqiq/eval/
 - **Word add-in for anyone:** download `word-addin/manifest.xml` from https://ayahaamr520-maker.github.io/mudaqqiq/word-addin/manifest.xml and upload it in Word (section 2, steps 3–5). No server on your laptop is needed.
 
-> Anyone with the link can use the website, and the code is public on GitHub.
+> The code stays private; the published website itself is public (anyone with the link can use it).
 
 **Alternative without the Action:** upload the models to Hugging Face and point the site at them (`python tools/upload_to_hf.py YOUR-HF-USERNAME`, then `node tools/configure-public.mjs --hf YOUR-HF-USERNAME --site https://…`). This is only needed if you host the site somewhere other than GitHub Pages.
 
@@ -334,7 +340,9 @@ The first run takes about 10 minutes (building the models); later runs take 1–
 | Certificate warning at https://localhost:3000 | Close the server, delete the folder `C:\Users\<you>\.office-addin-dev-certs`, run `2-start-word-addin-server.bat` again and click **Yes** |
 | "Upload My Add-in" is missing in Word on the web | Use a personal Microsoft account; school/work accounts may hide it |
 | Word desktop says it needs activation | Use Word on the web (section 2) |
-| AI button says «تعذّر تحميل النموذج» | The `web\models\arabic-punctuation` or `web\models\arabic-spelling` folder is missing. Copy it back, or regenerate it (section 12) |
+| AI button says «تعذّر تحميل النموذج» | The `web\models\arabic-punctuation`, `arabic-spelling` or `arabic-context` folder is missing. Copy it back, or regenerate it (section 12) |
+| A wrong word isn't flagged | If it's a real word used in the wrong place («حاك» instead of «حالك»), turn on **ذكاء اصطناعي: السياق** |
+| A name or rare word is flagged as unknown | Click **✕ تجاهل**. The dictionary comes from Wikipedia and doesn't know every name |
 | Google Docs: no «مدقق» menu | Reload the document and wait ~10 seconds. Check the three files are named exactly `Code`, `Sidebar`, `Engine` |
 | Google Docs: an error mentioning `Engine` or `Sidebar` | The two HTML files must be named exactly `Engine` and `Sidebar` (Apps Script adds `.html` itself) |
 | Extension badge doesn't appear | The text must contain Arabic. Reload the page after installing. It doesn't work in Google Docs |

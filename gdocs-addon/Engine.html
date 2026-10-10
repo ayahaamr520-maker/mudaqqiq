@@ -883,18 +883,22 @@ var Mudaqqiq = (() => {
     }
   });
 
-  // engine/engine.js
-  var engine_exports = {};
-  __export(engine_exports, {
+  // engine/bundle.js
+  var bundle_exports = {};
+  __export(bundle_exports, {
     CATEGORY_LABEL: () => CATEGORY_LABEL,
     MARK_GUIDE: () => MARK_GUIDE,
     STYLE_INFO: () => STYLE_INFO,
     applyAll: () => applyAll,
     applyIssue: () => applyIssue,
     createEngine: () => createEngine,
+    createLexicon: () => createLexicon,
+    createSpellProvider: () => createSpellProvider,
     explainStyle: () => explainStyle,
     issueKey: () => issueKey
   });
+
+  // engine/engine.js
   init_text();
   init_styles();
 
@@ -1805,7 +1809,7 @@ var Mudaqqiq = (() => {
             if (p.analyze) {
               const extra = await p.analyze(doc);
               for (const i of extra) {
-                i.source = "ai";
+                i.source ?? (i.source = "ai");
                 i.anchorStart ?? (i.anchorStart = i.start);
                 i.anchorEnd ?? (i.anchorEnd = i.end);
                 i.original = text.slice(i.start, i.end);
@@ -1827,7 +1831,275 @@ var Mudaqqiq = (() => {
   function applyAll(text, issues) {
     return [...issues].sort((a, b) => b.start - a.start || b.end - a.end).reduce(applyIssue, text);
   }
-  return __toCommonJS(engine_exports);
+
+  // engine/spell.js
+  init_text();
+  var GLUE = /* @__PURE__ */ new Set(["\u064A\u0627", "\u0644\u0627", "\u0645\u0627", "\u0643\u064A\u0641", "\u0647\u0644", "\u0641\u064A", "\u0645\u0646", "\u0639\u0646", "\u0639\u0644\u0649", "\u0625\u0644\u0649", "\u0627\u0644\u0649", "\u0647\u0630\u0627", "\u0647\u0630\u0647", "\u0630\u0644\u0643", "\u062A\u0644\u0643", "\u0639\u0628\u062F", "\u0623\u0628\u0648", "\u0627\u0628\u0648", "\u0625\u0646", "\u0623\u0646", "\u0627\u0646", "\u0642\u062F", "\u0644\u0645", "\u0644\u0646", "\u0643\u0644", "\u0628\u0639\u062F", "\u0642\u0628\u0644", "\u0639\u0646\u062F", "\u0645\u0639", "\u0623\u0648", "\u0627\u0648", "\u062B\u0645", "\u062D\u062A\u0649", "\u0643\u0627\u0646", "\u0625\u0630\u0627", "\u0627\u0630\u0627", "\u0644\u0643\u0646", "\u0628\u064A\u0646", "\u063A\u064A\u0631"]);
+  var LETTERS = [..."\u0627\u0628\u062A\u062B\u062C\u062D\u062E\u062F\u0630\u0631\u0632\u0633\u0634\u0635\u0636\u0637\u0638\u0639\u063A\u0641\u0642\u0643\u0644\u0645\u0646\u0647\u0648\u064A\u0621\u0623\u0625\u0622\u0624\u0626\u0629\u0649"];
+  var PREFIXES = ["\u0648\u0628", "\u0648\u0644", "\u0648\u0643", "\u0648\u0633", "\u0641\u0628", "\u0641\u0644", "\u0641\u0633", "\u0648", "\u0641", "\u0628", "\u0644", "\u0643", "\u0633"];
+  var SUFFIXES = ["\u0647\u0645\u0627", "\u0643\u0645\u0627", "\u0647\u0645", "\u0647\u0646", "\u0643\u0645", "\u0643\u0646", "\u0647\u0627", "\u0646\u0627", "\u0646\u064A", "\u0647", "\u0643", "\u064A"];
+  var ROWS = ["\u0636\u0635\u062B\u0642\u0641\u063A\u0639\u0647\u062E\u062D\u062C\u062F", "\u0634\u0633\u064A\u0628\u0644\u0627\u062A\u0646\u0645\u0643\u0637", "\u0626\u0621\u0624\u0631\u0644\u0627\u0649\u0629\u0648\u0632\u0638"];
+  var NEAR = /* @__PURE__ */ new Map();
+  ROWS.forEach((row, r) => [...row].forEach((ch, c) => {
+    const set = NEAR.get(ch) || /* @__PURE__ */ new Set();
+    for (const [rr, cc] of [[r, c - 1], [r, c + 1], [r - 1, c], [r - 1, c + 1], [r + 1, c], [r + 1, c - 1]]) {
+      const other = ROWS[rr]?.[cc];
+      if (other) set.add(other);
+    }
+    NEAR.set(ch, set);
+  }));
+  var ALIKE = ["\u0627\u0623\u0625\u0622", "\u0621\u0626\u0624\u0623\u0625", "\u0647\u0629", "\u064A\u0649", "\u0630\u0632\u062F", "\u0638\u0636\u0632", "\u0633\u0635", "\u062A\u0637", "\u062B\u0633", "\u0642\u0643", "\u062D\u062E\u062C", "\u0639\u063A", "\u0624\u0648", "\u0626\u064A"];
+  var alike = (a, b) => ALIKE.some((g) => g.includes(a) && g.includes(b));
+  function typoPrior(typed, cand) {
+    const t = plain(typed), c = plain(cand);
+    if (c.includes(" ")) return -0.5;
+    if (c.length === t.length + 1) return 0;
+    if (c.length === t.length - 1) return -0.7;
+    if (c.length !== t.length) return -3;
+    const diff = [...t].map((ch, i) => [ch, c[i]]).filter(([x2, y2]) => x2 !== y2);
+    if (diff.length === 2 && diff[0][0] === diff[1][1] && diff[0][1] === diff[1][0]) return -0.7;
+    const [x, y] = diff[0] || [];
+    if (alike(x, y)) return -0.4;
+    if (NEAR.get(x)?.has(y)) return -0.8;
+    return -2.5;
+  }
+  function createLexicon(text) {
+    const words = text.split("\n").map((w) => w.trim()).filter(Boolean);
+    const rank = /* @__PURE__ */ new Map();
+    words.forEach((w, i) => {
+      if (!rank.has(w)) rank.set(w, i + 1);
+    });
+    const rankOf = (w) => rank.get(w) ?? Infinity;
+    function isKnown(word) {
+      const w = plain(word);
+      if (rank.has(w)) return true;
+      for (const p of ["", ...PREFIXES]) {
+        if (p && !w.startsWith(p)) continue;
+        const a = w.slice(p.length);
+        for (const s of ["", ...SUFFIXES]) {
+          if (!p && !s) continue;
+          if (s && !a.endsWith(s)) continue;
+          const stem2 = s ? a.slice(0, -s.length) : a;
+          if (stem2.length < 2) continue;
+          const forms = s && stem2.endsWith("\u062A") ? [stem2, stem2.slice(0, -1) + "\u0629"] : [stem2];
+          if (forms.some((f) => rankOf(f) < 2e5)) return true;
+        }
+      }
+      return false;
+    }
+    function candidates(word, { maxRank = Infinity, limit = 8 } = {}) {
+      const w = plain(word);
+      const out = /* @__PURE__ */ new Map();
+      const add = (c) => {
+        if (c !== w && !out.has(c)) {
+          const r = c.includes(" ") ? Math.max(...c.split(" ").map(rankOf)) : rankOf(c);
+          if (r < Infinity && r <= maxRank) out.set(c, r);
+        }
+      };
+      for (let i = 0; i <= w.length; i++) {
+        const a = w.slice(0, i), b = w.slice(i);
+        if (b) add(a + b.slice(1));
+        if (b.length > 1) add(a + b[1] + b[0] + b.slice(2));
+        for (const L of LETTERS) {
+          if (b) add(a + L + b.slice(1));
+          add(a + L + b);
+        }
+        if (GLUE.has(a) && b.length >= 2 && rankOf(b) < 15e4) add(a + " " + b);
+      }
+      return [...out.entries()].sort((x, y) => x[1] - y[1]).slice(0, limit).map(([c, r]) => ({ word: c, rank: r }));
+    }
+    return { size: rank.size, rankOf, isKnown, candidates };
+  }
+
+  // engine/spell-provider.js
+  init_text();
+
+  // engine/ai/spelling-diff.js
+  init_text();
+  var WORD = /[ء-غـ-ٟ٠-٩ٰ-ۓ\w]+|[^\sء-غـ-ٟ٠-٩ٰ-ۓ\w]/gu;
+  function fineTokens(text, base = 0) {
+    const out = [];
+    let m;
+    WORD.lastIndex = 0;
+    while (m = WORD.exec(text)) out.push({ text: m[0], start: base + m.index, end: base + m.index + m[0].length });
+    return out;
+  }
+  var HAMZA = "\u0627\u0623\u0625\u0622\u0621\u0624\u0626";
+  var k2 = (w) => plain(w).replace(/[أإآٱ]/g, "\u0627").replace(/ة/g, "\u0647").replace(/ى/g, "\u064A");
+  function withSpacing(lettersOfA, B) {
+    let k = 0;
+    return [...B].map((c) => /\s/.test(c) ? c : lettersOfA[k++]).join("");
+  }
+  var swapOnly = (a, b, set) => a.length === b.length && [...a].every((c, k) => c === b[k] || set.includes(c) && set.includes(b[k]));
+  function explainChange(a, b) {
+    const A = plain(a), B = plain(b);
+    const sA = A.replace(/\s+/g, ""), sB = B.replace(/\s+/g, "");
+    if (sA === sB) {
+      if ((B.match(/\s/g) || []).length < (A.match(/\s/g) || []).length) {
+        const [first, second = ""] = A.split(/\s+/);
+        return /^[بلكوف]$/.test(first) && second.length >= 2 ? { category: "spelling", title: "\u0648\u0635\u0644 \u062D\u0631\u0641 \u0628\u0627\u0644\u0643\u0644\u0645\u0629", explanation: `\u0627\u0644\u062D\u0631\u0641 \xAB${first}\xBB (\u0645\u0646 \u062D\u0631\u0648\u0641 \u0627\u0644\u062C\u0631 \u0623\u0648 \u0627\u0644\u0639\u0637\u0641 \u0627\u0644\u0645\u0643\u0648\u0651\u0646\u0629 \u0645\u0646 \u062D\u0631\u0641 \u0648\u0627\u062D\u062F) \u064A\u064F\u0643\u062A\u0628 \u0645\u062A\u0635\u0644\u064B\u0627 \u0628\u0627\u0644\u0643\u0644\u0645\u0629 \u0627\u0644\u062A\u064A \u0628\u0639\u062F\u0647: \xAB${b}\xBB.` } : { category: "spelling", title: "\u0648\u0635\u0644 \u0623\u062C\u0632\u0627\u0621 \u0627\u0644\u0643\u0644\u0645\u0629", explanation: `\xAB${b}\xBB \u0643\u0644\u0645\u0629 \u0648\u0627\u062D\u062F\u0629 \u0641\u062A\u064F\u0643\u062A\u0628 \u0645\u062A\u0635\u0644\u0629 \u062F\u0648\u0646 \u0645\u0633\u0627\u0641\u0629.` };
+      }
+      return { category: "spelling", title: "\u0641\u0635\u0644 \u0627\u0644\u0643\u0644\u0645\u0627\u062A", explanation: `\xAB${b}\xBB \u0643\u0644\u0645\u062A\u0627\u0646 \u0645\u0633\u062A\u0642\u0644\u062A\u0627\u0646\u060C \u0641\u064A\u062C\u0628 \u0627\u0644\u0641\u0635\u0644 \u0628\u064A\u0646\u0647\u0645\u0627 \u0628\u0645\u0633\u0627\u0641\u0629.` };
+    }
+    const spaces = (x) => (x.match(/\s/g) || []).length;
+    if (spaces(A) !== spaces(B) && k2(sA) === k2(sB)) {
+      const join = explainChange(A, withSpacing([...sA], B));
+      const letters = explainChange(sA, sB);
+      return { category: "spelling", title: `${join.title} + ${letters.title}`, explanation: `${join.explanation} ${letters.explanation}` };
+    }
+    if (A.length === B.length) {
+      const diffs = [...A].map((c, k) => [c, B[k], k]).filter(([x, y]) => x !== y);
+      if (diffs.every(([x, y, k]) => x === "\u0647" && y === "\u0629" && (k === A.length - 1 || /\s/.test(A[k + 1] || " "))))
+        return { category: "spelling", title: "\u0627\u0644\u062A\u0627\u0621 \u0627\u0644\u0645\u0631\u0628\u0648\u0637\u0629", explanation: "\u062A\u064F\u0643\u062A\u0628 \u0627\u0644\u062A\u0627\u0621 \u0627\u0644\u0645\u0631\u0628\u0648\u0637\u0629 (\u0629) \u0641\u064A \u0622\u062E\u0631 \u0627\u0644\u0623\u0633\u0645\u0627\u0621 \u0627\u0644\u0645\u0624\u0646\u062B\u0629 \u0645\u062B\u0644 \xAB\u0645\u062F\u0631\u0633\u0629\u060C \u0633\u064A\u0627\u0631\u0629\xBB\u060C \u0648\u062A\u064F\u0646\u0637\u0642 \u062A\u0627\u0621\u064B \u0639\u0646\u062F \u0627\u0644\u0648\u0635\u0644\u061B \u0623\u0645\u0627 \u0627\u0644\u0647\u0627\u0621 (\u0647) \u0641\u062A\u0643\u0648\u0646 \u0636\u0645\u064A\u0631\u064B\u0627 \u0623\u0648 \u0623\u0635\u0644\u064B\u0627 \u0641\u064A \u0627\u0644\u0643\u0644\u0645\u0629." };
+      if (diffs.every(([x, y]) => x === "\u0629" && y === "\u0647"))
+        return { category: "spelling", title: "\u0627\u0644\u0647\u0627\u0621 \u0644\u0627 \u0627\u0644\u062A\u0627\u0621 \u0627\u0644\u0645\u0631\u0628\u0648\u0637\u0629", explanation: "\u0647\u0630\u0647 \u0627\u0644\u0647\u0627\u0621 \u0636\u0645\u064A\u0631 \u0623\u0648 \u0623\u0635\u0644 \u0641\u064A \u0627\u0644\u0643\u0644\u0645\u0629\u060C \u0641\u0644\u0627 \u062A\u064F\u0643\u062A\u0628 \u062A\u0627\u0621\u064B \u0645\u0631\u0628\u0648\u0637\u0629 (\u0629)." };
+      if (diffs.every(([x, y]) => x === "\u064A" && y === "\u0649" || x === "\u0649" && y === "\u064A"))
+        return { category: "spelling", title: "\u0627\u0644\u0623\u0644\u0641 \u0627\u0644\u0645\u0642\u0635\u0648\u0631\u0629 \u0648\u0627\u0644\u064A\u0627\u0621", explanation: diffs[0][1] === "\u0649" ? "\u062A\u064F\u0643\u062A\u0628 \u0647\u0630\u0647 \u0627\u0644\u0643\u0644\u0645\u0629 \u0628\u0627\u0644\u0623\u0644\u0641 \u0627\u0644\u0645\u0642\u0635\u0648\u0631\u0629 (\u0649) \u0641\u064A \u0622\u062E\u0631\u0647\u0627\u060C \u0645\u062B\u0644: \xAB\u0639\u0644\u0649\u060C \u0625\u0644\u0649\u060C \u0645\u0633\u062A\u0634\u0641\u0649\xBB." : "\u062A\u064F\u0643\u062A\u0628 \u0647\u0630\u0647 \u0627\u0644\u0643\u0644\u0645\u0629 \u0628\u0627\u0644\u064A\u0627\u0621 (\u064A) \u0644\u0627 \u0628\u0627\u0644\u0623\u0644\u0641 \u0627\u0644\u0645\u0642\u0635\u0648\u0631\u0629\u060C \u0645\u062B\u0644: \xAB\u0641\u064A\u060C \u0627\u0644\u0630\u064A\u060C \u0627\u0644\u062A\u064A\xBB." };
+      if (swapOnly(A, B, HAMZA)) {
+        const to = diffs.map(([, y]) => y).join("");
+        if (/^ا+$/.test(to)) return { category: "spelling", title: "\u0647\u0645\u0632\u0629 \u0648\u0635\u0644", explanation: "\u0627\u0644\u0647\u0645\u0632\u0629 \u0647\u0646\u0627 \u0647\u0645\u0632\u0629 \u0648\u0635\u0644 (\u062A\u064F\u0646\u0637\u0642 \u0641\u064A \u0623\u0648\u0644 \u0627\u0644\u0643\u0644\u0627\u0645 \u0648\u062A\u0633\u0642\u0637 \u0641\u064A \u0648\u0633\u0637\u0647) \u0641\u0644\u0627 \u062A\u064F\u0643\u062A\u0628 \u0639\u0644\u0649 \u0627\u0644\u0623\u0644\u0641\u060C \u0643\u0645\u0627 \u0641\u064A: \xAB\u0627\u0647\u062A\u0645\u0627\u0645\u060C \u0627\u0633\u062A\u062E\u062F\u0627\u0645\u060C \u0627\u0633\u0645\u060C \u0627\u0628\u0646\xBB." };
+        if (/^[أإآ]+$/.test(to)) return { category: "spelling", title: "\u0647\u0645\u0632\u0629 \u0642\u0637\u0639", explanation: `\u0627\u0644\u0647\u0645\u0632\u0629 \u0641\u064A \xAB${b}\xBB \u0647\u0645\u0632\u0629 \u0642\u0637\u0639 (\u062A\u064F\u0646\u0637\u0642 \u062F\u0627\u0626\u0645\u064B\u0627) \u0641\u062A\u064F\u0643\u062A\u0628: \u0641\u0648\u0642 \u0627\u0644\u0623\u0644\u0641 \u0625\u0630\u0627 \u0643\u0627\u0646\u062A \u0645\u0641\u062A\u0648\u062D\u0629 \u0623\u0648 \u0645\u0636\u0645\u0648\u0645\u0629 (\u0623)\u060C \u0648\u062A\u062D\u062A\u0647\u0627 \u0625\u0630\u0627 \u0643\u0627\u0646\u062A \u0645\u0643\u0633\u0648\u0631\u0629 (\u0625).` };
+        return { category: "spelling", title: "\u0643\u062A\u0627\u0628\u0629 \u0627\u0644\u0647\u0645\u0632\u0629", explanation: `\u062A\u064F\u0643\u062A\u0628 \u0627\u0644\u0647\u0645\u0632\u0629 \u0641\u064A \xAB${b}\xBB \u0639\u0644\u0649 \u0627\u0644\u062D\u0631\u0641 \u0627\u0644\u0645\u0646\u0627\u0633\u0628 \u0644\u062D\u0631\u0643\u062A\u0647\u0627 \u0648\u062D\u0631\u0643\u0629 \u0645\u0627 \u0642\u0628\u0644\u0647\u0627.` };
+      }
+    }
+    const ends = /(ون|ين|ات|ان|ا|ًا)$/;
+    if (A.split(/\s+/).length === B.split(/\s+/).length && A.replace(ends, "") === B.replace(ends, "") && A !== B)
+      return { category: "grammar", title: "\u0639\u0644\u0627\u0645\u0629 \u0627\u0644\u0625\u0639\u0631\u0627\u0628 \u0623\u0648 \u0627\u0644\u0645\u0637\u0627\u0628\u0642\u0629", explanation: `\u062A\u063A\u064A\u0651\u0631\u062A \u0646\u0647\u0627\u064A\u0629 \u0627\u0644\u0643\u0644\u0645\u0629 (\xAB${a}\xBB \u2190 \xAB${b}\xBB) \u0644\u062A\u0648\u0627\u0641\u0642 \u0645\u0648\u0642\u0639\u0647\u0627 \u0641\u064A \u0627\u0644\u062C\u0645\u0644\u0629: \u0643\u0646\u0635\u0628 \u062E\u0628\u0631 \xAB\u0643\u0627\u0646\xBB \u0648\u0627\u0633\u0645 \xAB\u0625\u0646\u0651\xBB (\u062C\u0645\u064A\u0644\u064B\u0627\u060C \u0627\u0644\u0645\u0639\u0644\u0645\u064A\u0646)\u060C \u0623\u0648 \u0631\u0641\u0639 \u0627\u0644\u062E\u0628\u0631 (\u0645\u062C\u062A\u0647\u062F\u0648\u0646)\u060C \u0623\u0648 \u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0635\u0641\u0629 \u0648\u0627\u0644\u062E\u0628\u0631 \u0644\u0644\u0645\u0648\u0635\u0648\u0641 \u0648\u0627\u0644\u0645\u0628\u062A\u062F\u0623.` };
+    if (sB.length < sA.length && [...sB].every((c) => sA.includes(c)))
+      return { category: "spelling", title: "\u062D\u0631\u0641 \u0632\u0627\u0626\u062F", explanation: `\u064A\u0648\u062C\u062F \u062D\u0631\u0641 \u0632\u0627\u0626\u062F\u061B \u0648\u0627\u0644\u0635\u0648\u0627\u0628 \xAB${b}\xBB. (\u0628\u0639\u0636 \u0627\u0644\u0643\u0644\u0645\u0627\u062A \u062A\u064F\u0646\u0637\u0642 \u0628\u0623\u0644\u0641 \u0644\u0627 \u062A\u064F\u0643\u062A\u0628\u060C \u0645\u062B\u0644: \u0647\u0630\u0627\u060C \u0644\u0643\u0646\u060C \u0630\u0644\u0643.)` };
+    return { category: "spelling", title: "\u062A\u0635\u062D\u064A\u062D \u0625\u0645\u0644\u0627\u0626\u064A", explanation: `\u0627\u0644\u0635\u0648\u0627\u0628 \xAB${b}\xBB.` };
+  }
+
+  // engine/spell-provider.js
+  var ARABIC_WORD = /^[ء-يً-ْـ]{2,}$/;
+  var SUSPICIOUS = -9.5;
+  var MARGIN = 5;
+  var COMMON_RANK = 300;
+  function createSpellProvider({ lexicon, scorer = null } = {}) {
+    const provider = {
+      name: "Dictionary",
+      lexicon,
+      scorer,
+      async analyze(doc) {
+        const issues = [];
+        for (const s of doc.sentences) {
+          if (!/[ء-ي]/.test(s.text)) continue;
+          const toks = fineTokens(s.text, s.start);
+          const words = toks.map((t) => t.text);
+          const unknown = [];
+          const known = [];
+          const variants = [];
+          toks.forEach((t, i) => {
+            if (!ARABIC_WORD.test(t.text)) return;
+            const p = plain(t.text);
+            if (!lexicon.isKnown(p)) {
+              const cands = lexicon.candidates(p, { limit: 200 }).filter((c) => typoPrior(p, c.word) === 0 || c.rank < 15e4 && typoPrior(p, c.word) >= -0.8);
+              if (cands.length) unknown.push({ i, t, p, cands });
+            } else {
+              const v = betterVariant(lexicon, p);
+              if (v) variants.push({ t, v });
+              else if (provider.scorer && lexicon.rankOf(p) > COMMON_RANK) known.push({ i, t, p });
+            }
+          });
+          for (const { t, v } of variants) {
+            const why = explainChange(t.text, v);
+            issues.push({
+              ruleId: "spell-variant",
+              title: why.title,
+              category: "spelling",
+              source: "rule",
+              severity: "warning",
+              confidence: 0.75,
+              start: t.start,
+              end: t.end,
+              replacement: v,
+              anchorStart: t.start,
+              anchorEnd: t.end,
+              explanation: `${why.explanation}
+\xAB${v}\xBB \u0623\u0643\u062B\u0631 \u0634\u064A\u0648\u0639\u064B\u0627 \u0641\u064A \u0627\u0644\u0643\u062A\u0627\u0628\u0629 \u0627\u0644\u0635\u062D\u064A\u062D\u0629 \u0645\u0646 \xAB${t.text}\xBB \u0628\u0643\u062B\u064A\u0631.`
+            });
+          }
+          for (const u of unknown) {
+            const ranked = provider.scorer ? (await rankByContext(provider.scorer, words, u.i, u.p, u.cands)).map((x) => x.word) : rankByDictionary(u.p, u.cands);
+            const clear = typoPrior(u.p, ranked[0]) >= -0.4;
+            issues.push(makeIssue(u.t, ranked, {
+              severity: provider.scorer || clear ? "warning" : "hint",
+              ruleId: "spell-unknown",
+              title: "\u0643\u0644\u0645\u0629 \u063A\u064A\u0631 \u0645\u0648\u062C\u0648\u062F\u0629 \u0641\u064A \u0627\u0644\u0645\u0639\u062C\u0645",
+              why: `\xAB${u.t.text}\xBB \u0644\u064A\u0633\u062A \u0643\u0644\u0645\u0629 \u0645\u0639\u0631\u0648\u0641\u0629 \u0641\u064A \u0627\u0644\u0645\u0639\u062C\u0645 (\u0623\u0643\u062B\u0631 \u0645\u0646 \u0646\u0635\u0641 \u0645\u0644\u064A\u0648\u0646 \u0643\u0644\u0645\u0629 \u0645\u0646 \u0648\u064A\u0643\u064A\u0628\u064A\u062F\u064A\u0627 \u0627\u0644\u0639\u0631\u0628\u064A\u0629)\u060C \u0648\u0627\u0644\u0623\u0631\u062C\u062D \u0623\u0646\u0647\u0627 \u062E\u0637\u0623 \u0641\u064A \u0627\u0644\u0643\u062A\u0627\u0628\u0629.`,
+              byContext: !!provider.scorer
+            }));
+          }
+          if (provider.scorer && known.length) {
+            for (const k of known) {
+              const [own] = await provider.scorer.score(words, k.i, [k.t.text], { withNext: false });
+              if (own.own > SUSPICIOUS) continue;
+              const cands = lexicon.candidates(k.p, { limit: 200 });
+              if (!cands.length) continue;
+              const [typed] = await provider.scorer.score(words, k.i, [k.t.text]);
+              const best = (await rankByContext(provider.scorer, words, k.i, k.p, cands)).filter((b) => b.score - typed.total >= MARGIN);
+              if (!best.length) continue;
+              issues.push(makeIssue(k.t, best.map((b) => b.word), {
+                ruleId: "spell-context",
+                title: "\u0643\u0644\u0645\u0629 \u0644\u0627 \u062A\u0646\u0627\u0633\u0628 \u0627\u0644\u0633\u064A\u0627\u0642",
+                why: `\xAB${k.t.text}\xBB \u0643\u0644\u0645\u0629 \u0635\u062D\u064A\u062D\u0629 \u0641\u064A \u0630\u0627\u062A\u0647\u0627\u060C \u0644\u0643\u0646\u0647\u0627 \u0644\u0627 \u062A\u0646\u0627\u0633\u0628 \u0633\u064A\u0627\u0642 \u0627\u0644\u062C\u0645\u0644\u0629\u060C \u0648\u0627\u0644\u0623\u0631\u062C\u062D \u0623\u0646\u0643 \u0642\u0635\u062F\u062A \xAB${best[0].word}\xBB (\u0628\u0641\u0631\u0642 \u062D\u0631\u0641 \u0648\u0627\u062D\u062F).`,
+                byContext: true,
+                ai: true
+              }));
+            }
+          }
+        }
+        return issues;
+      }
+    };
+    return provider;
+  }
+  function betterVariant(lexicon, p) {
+    const r = lexicon.rankOf(p);
+    if (r < 2e3) return null;
+    const vs = [];
+    if (/ه$/.test(p)) vs.push(p.slice(0, -1) + "\u0629");
+    if (/ة$/.test(p)) vs.push(p.slice(0, -1) + "\u0647");
+    if (/ي$/.test(p)) vs.push(p.slice(0, -1) + "\u0649");
+    if (/ى$/.test(p)) vs.push(p.slice(0, -1) + "\u064A");
+    const m = p.match(/^([وفبلك]?(?:ال)?)([اأإآ])(.+)$/);
+    if (m) {
+      for (const a of "\u0627\u0623\u0625\u0622") if (a !== m[2]) vs.push(m[1] + a + m[3]);
+    }
+    const best = vs.map((v) => [v, lexicon.rankOf(v)]).sort((x, y) => x[1] - y[1])[0];
+    return best && best[1] * 50 < r ? best[0] : null;
+  }
+  function rankByDictionary(typed, cands) {
+    return cands.map((c) => ({ word: c.word, score: typoPrior(typed, c.word) - 0.3 * Math.log(c.rank) })).sort((a, b) => b.score - a.score).map((c) => c.word);
+  }
+  async function rankByContext(scorer, words, i, typed, cands) {
+    const pool = cands.filter((c, n) => n < 8 || typoPrior(typed, c.word) >= -0.8).slice(0, 30).map((c) => c.word);
+    const quick = await scorer.score(words, i, pool, { withNext: false });
+    const top = quick.map((x) => ({ word: x.word, s: x.own + typoPrior(typed, x.word) })).sort((a, b) => b.s - a.s).slice(0, 5).map((x) => x.word);
+    const full = await scorer.score(words, i, top);
+    return full.map((x) => ({ word: x.word, score: x.total + typoPrior(typed, x.word) })).sort((a, b) => b.score - a.score);
+  }
+  function makeIssue(t, ranked, { ruleId, title, why, byContext, ai = false, severity = "warning" }) {
+    const [best, ...alts] = ranked;
+    const more = alts.slice(0, 3);
+    return {
+      ruleId,
+      title,
+      category: "spelling",
+      source: ai || byContext ? "ai" : "rule",
+      severity,
+      confidence: byContext ? 0.85 : 0.7,
+      start: t.start,
+      end: t.end,
+      replacement: best,
+      anchorStart: t.start,
+      anchorEnd: t.end,
+      alternatives: more,
+      explanation: why + (more.length ? `
+\u0627\u0642\u062A\u0631\u0627\u062D\u0627\u062A \u0623\u062E\u0631\u0649: ${more.map((a) => `\xAB${a}\xBB`).join("\u060C ")}.` : "") + (byContext ? "\n\n\u{1F916} \u0631\u064F\u062A\u0651\u0628\u062A \u0627\u0644\u0627\u0642\u062A\u0631\u0627\u062D\u0627\u062A \u062D\u0633\u0628 \u0633\u064A\u0627\u0642 \u0627\u0644\u062C\u0645\u0644\u0629 \u0628\u0646\u0645\u0648\u0630\u062C AraBERT." : "\n\u0631\u064F\u062A\u0651\u0628\u062A \u0627\u0644\u0627\u0642\u062A\u0631\u0627\u062D\u0627\u062A \u062D\u0633\u0628 \u0634\u064A\u0648\u0639 \u0627\u0644\u0643\u0644\u0645\u0627\u062A\u061B \u0641\u0639\u0651\u0644 \xAB\u0630\u0643\u0627\u0621 \u0627\u0635\u0637\u0646\u0627\u0639\u064A: \u0627\u0644\u0633\u064A\u0627\u0642\xBB \u0644\u062A\u0631\u062A\u064A\u0628\u0647\u0627 \u062D\u0633\u0628 \u0645\u0639\u0646\u0649 \u0627\u0644\u062C\u0645\u0644\u0629.")
+    };
+  }
+  return __toCommonJS(bundle_exports);
 })();
 
 </script>

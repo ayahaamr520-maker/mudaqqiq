@@ -113,7 +113,7 @@ export function createEngine({ rules = DEFAULT_RULES, customRules = CUSTOM_RULES
           if (p.analyze) {
             const extra = await p.analyze(doc);
             for (const i of extra) {
-              i.source = 'ai';
+              i.source ??= 'ai';
               i.anchorStart ??= i.start; i.anchorEnd ??= i.end;
               i.original = text.slice(i.start, i.end);
               i.anchorText = text.slice(i.anchorStart, i.anchorEnd);

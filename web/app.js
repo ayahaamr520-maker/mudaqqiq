@@ -1,5 +1,8 @@
 import { createEngine, CATEGORY_LABEL, explainStyle, STYLE_INFO, MARK_GUIDE } from '../engine/engine.js';
 import { MODEL_REMOTE } from './config.js';
+import { createLexicon } from '../engine/spell.js';
+import { createSpellProvider } from '../engine/spell-provider.js';
+import { loadModel } from './ai-client.js';
 
 // Where the ONNX models live: the local folder first (served with the site);
 // if it isn't there, the Hugging Face repo from web/config.js.
@@ -7,14 +10,20 @@ const AI_MODELS = {
   punct: {
     local: new URL('./models/arabic-punctuation/', location.href).href,
     remote: MODEL_REMOTE.punct,
-    module: '../engine/ai/punctuation-model.js', factory: 'createPunctuationProvider',
     name: 'الترقيم', button: '#ai-punct',
   },
   spell: {
     local: new URL('./models/arabic-spelling/', location.href).href,
     remote: MODEL_REMOTE.spell,
-    module: '../engine/ai/spelling-model.js', factory: 'createSpellingProvider',
     name: 'الإملاء والنحو', button: '#ai-spell',
+  },
+  context: {
+    local: new URL('./models/arabic-context/', location.href).href,
+    remote: MODEL_REMOTE.context,
+    name: 'السياق', button: '#ai-context',
+    // the context model doesn't check text itself: it ranks the spell checker's suggestions
+    attach: (p) => { if (spellProvider) spellProvider.scorer = p; },
+    detach: () => { if (spellProvider) spellProvider.scorer = null; },
   },
 };
 
@@ -32,6 +41,7 @@ const SAMPLES = {
     'قال المعلم «العلم نور».', 'قال تعالى: (وقل رب زدني علما).', 'ولد المتنبي ( 915م في الكوفة.', 'الأسباب كالتالي الفقر والجهل.',
     'لم ينجح الطالب في الامتحان لأنه لم يدرس.', 'أما بعد فإن العلم نور.', 'نعم سأحضر غدا.', '-أولا الترقيم.', 'تعلمت أشياء كثيرة ...',
   ].join('\n'),
+  typos: ['كيف حاك؟', 'هذا الكتاب مفيذ جدا.', 'الطاب مجتهد في دراسته.', 'انا سعيد جدا بلقئك.'].join('\n'),
   spelling: 'السياره الجديده سريعه جدا.\nيجب الإهتمام ب الصحه و لا سيما الصحه النفسيه.\nكان الجو جميل اليوم.\nلاكن المشكله ان الوقت ضيق ياصديقي.',
 };
 
@@ -46,8 +56,9 @@ const engine = createEngine();
 const ignored = new Set();
 let result = { text: '', sentences: [], issues: [] };
 let activeId = null;
-const aiState = { punct: { provider: null, on: false }, spell: { provider: null, on: false } };
-const aiOn = () => aiState.punct.on || aiState.spell.on;
+const aiState = { punct: { provider: null, on: false }, spell: { provider: null, on: false }, context: { provider: null, on: false } };
+const aiOn = () => aiState.punct.on || aiState.spell.on || aiState.context.on;
+let spellProvider = null; // dictionary spell check, loaded at start-up
 let aiTimer = 0;
 let aiRun = 0;
 
@@ -58,7 +69,7 @@ const cls = (i) => (i.source === 'ai' ? 'ai' : i.category);
 function analyzeNow() {
   result = engine.analyze(input.value, { ignored });
   render();
-  if (aiOn()) scheduleAI();
+  if (aiOn() || spellProvider) scheduleAI();
 }
 
 function scheduleAI() {
@@ -68,8 +79,18 @@ function scheduleAI() {
     const text = input.value;
     const r = await engine.analyzeAsync(text, { ignored });
     if (run === aiRun && text === input.value) { result = r; render(); }
-  }, 450);
+  }, aiOn() ? 450 : 200);
 }
+
+// Dictionary spell check: ~530k Arabic words, loaded once in the background.
+fetch(new URL('./data/ar-words.txt', location.href))
+  .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
+  .then((text) => {
+    spellProvider = createSpellProvider({ lexicon: createLexicon(text), scorer: aiState.context.on ? aiState.context.provider : null });
+    engine.addProvider(spellProvider);
+    analyzeNow();
+  })
+  .catch((e) => console.warn('spell-check dictionary not loaded', e));
 
 let ruleTimer = 0;
 input.addEventListener('input', () => {
@@ -155,6 +176,7 @@ function cardHTML(i, { open = false } = {}) {
       <button class="btn" data-act="ignore">✕ تجاهل</button>
       <button class="btn ghost" data-act="why">💡 لماذا؟</button>
     </div>
+    ${i.alternatives?.length ? `<div class="actions alts">أو: ${i.alternatives.map((a) => `<button class="btn" data-act="alt" data-val="${esc(a)}">${esc(a)}</button>`).join('')}</div>` : ''}
   </div>`;
 }
 
@@ -187,6 +209,7 @@ function handleAction(e) {
   if (!i) return;
   if (!btn) { focusIssue(i); return; }
   if (btn.dataset.act === 'apply') applyIssue(i);
+  else if (btn.dataset.act === 'alt') applyIssue({ ...i, replacement: btn.dataset.val });
   else if (btn.dataset.act === 'ignore') ignoreIssue(i);
   else card.querySelector('.why').hidden = !card.querySelector('.why').hidden;
 }
@@ -294,7 +317,7 @@ async function toggleAI(kind) {
   const label = btn.querySelector('.label');
   if (st.on) {
     st.on = false;
-    engine.removeProvider(st.provider);
+    if (cfg.detach) cfg.detach(); else engine.removeProvider(st.provider);
     btn.setAttribute('aria-pressed', 'false');
     label.textContent = `ذكاء اصطناعي: ${cfg.name}`;
     analyzeNow();
@@ -308,8 +331,8 @@ async function toggleAI(kind) {
     bar.hidden = false;
     const files = {};
     try {
-      const mod = await import(cfg.module);
-      st.provider = await mod[cfg.factory]({
+      // the model runs in a background thread (web/ai-worker.js), so typing never freezes
+      st.provider = await loadModel(kind, {
         localPath: cfg.local,
         remoteId: cfg.remote,
         onProgress: ({ file, loaded, total }) => {
@@ -333,13 +356,14 @@ async function toggleAI(kind) {
     btn.disabled = false;
   }
   st.on = true;
-  engine.addProvider(st.provider);
+  if (cfg.attach) cfg.attach(st.provider); else engine.addProvider(st.provider);
   btn.setAttribute('aria-pressed', 'true');
   label.textContent = `${cfg.name}: مفعّل`;
   analyzeNow();
 }
 $('#ai-punct').addEventListener('click', () => toggleAI('punct'));
 $('#ai-spell').addEventListener('click', () => toggleAI('spell'));
+$('#ai-context').addEventListener('click', () => toggleAI('context'));
 
 // start
 input.value = SAMPLES.brief;

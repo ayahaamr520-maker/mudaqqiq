@@ -4,4 +4,5 @@
 export const MODEL_REMOTE = {
   punct: '', // e.g. 'your-hf-username/arabic-punctuation-arabert-onnx'
   spell: '', // e.g. 'your-hf-username/arabic-spelling-camel-onnx'
+  context: '', // e.g. 'your-hf-username/arabic-context-arabert-onnx'
 };

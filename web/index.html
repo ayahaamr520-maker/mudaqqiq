@@ -33,6 +33,7 @@
             <option value="brief">أمثلة من فكرة المشروع</option>
             <option value="raw">نص بلا علامات ترقيم (للذكاء الاصطناعي)</option>
             <option value="grammar">أخطاء نحوية وإملائية</option>
+            <option value="typos">أخطاء كتابة (حرف ناقص أو خاطئ)</option>
             <option value="spelling">أخطاء إملائية (لنموذج الإملاء)</option>
             <option value="styles">الأساليب الاثنان والعشرون</option>
             <option value="marks">علامات الترقيم (تنصيص، أقواس، شرطة…)</option>
@@ -43,6 +44,9 @@
         </button>
         <button id="ai-spell" class="btn ai" aria-pressed="false" title="نموذج CAMeL للإملاء والنحو (135 م.ب، يُحمَّل مرة واحدة)">
           <span class="dot"></span><span class="label">ذكاء اصطناعي: الإملاء والنحو</span>
+        </button>
+        <button id="ai-context" class="btn ai" aria-pressed="false" title="نموذج AraBERT للكلمات في سياقها: يكشف الكلمة الصحيحة في غير موضعها مثل «كيف حاك؟» (185 م.ب، يُحمَّل مرة واحدة)">
+          <span class="dot"></span><span class="label">ذكاء اصطناعي: السياق</span>
         </button>
         <span class="spacer"></span>
         <button id="fix-all" class="btn primary" disabled>تصحيح الكل</button>

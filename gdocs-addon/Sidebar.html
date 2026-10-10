@@ -42,6 +42,14 @@
   <?!= include('Engine'); ?>
   <script>
     var engine = Mudaqqiq.createEngine();
+    // Dictionary spell check: the word list is fetched once from the project website.
+    var LEXICON_URL = 'https://ayahaamr520-maker.github.io/mudaqqiq/web/data/ar-words.txt';
+    var spellReady = false;
+    fetch(LEXICON_URL).then(function (r) { return r.ok ? r.text() : Promise.reject(); }).then(function (text) {
+      engine.addProvider(Mudaqqiq.createSpellProvider({ lexicon: Mudaqqiq.createLexicon(text) }));
+      spellReady = true;
+      checkCurrent(true).catch(function () {});
+    }).catch(function () {});
     var LABEL = Mudaqqiq.CATEGORY_LABEL;
     var ignored = new Set();
     var findings = [];   // [{ para, text, issue }]
@@ -65,8 +73,9 @@
     }
 
     function analyzeParagraph(index, text) {
-      if (!/[؀-ۿ]/.test(text)) return [];
-      return engine.analyze(text, { ignored: ignored }).issues.map(function (issue) { return { para: index, text: text, issue: issue }; });
+      if (!/[؀-ۿ]/.test(text)) return Promise.resolve([]);
+      var run = spellReady ? engine.analyzeAsync(text, { ignored: ignored }) : Promise.resolve(engine.analyze(text, { ignored: ignored }));
+      return run.then(function (r) { return r.issues.map(function (issue) { return { para: index, text: text, issue: issue }; }); });
     }
 
     function render() {
@@ -89,10 +98,11 @@
       mode = 'document';
       $('#msg').textContent = 'جارٍ الفحص…';
       return run('getParagraphs').then(function (paras) {
-        findings = [];
-        paras.forEach(function (t, k) { findings = findings.concat(analyzeParagraph(k, t)); });
-        $('#msg').textContent = findings.length + ' ملاحظة في ' + paras.length + ' فقرة';
-        render();
+        return Promise.all(paras.map(function (t, k) { return analyzeParagraph(k, t); })).then(function (lists) {
+          findings = [].concat.apply([], lists);
+          $('#msg').textContent = findings.length + ' ملاحظة في ' + paras.length + ' فقرة';
+          render();
+        });
       });
     }
 
@@ -103,9 +113,11 @@
         if (!force && key === lastCurrent) return;
         lastCurrent = key;
         mode = 'current';
-        findings = analyzeParagraph(cur.index, cur.text);
-        $('#msg').textContent = '';
-        render();
+        return analyzeParagraph(cur.index, cur.text).then(function (f) {
+          findings = f;
+          $('#msg').textContent = '';
+          render();
+        });
       });
     }
 

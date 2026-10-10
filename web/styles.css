@@ -120,6 +120,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: .85em; backgro
 .why { font-size: 13.5px; color: var(--ink-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; margin-top: 8px; white-space: pre-line; }
 .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .actions .btn { padding: 4px 10px; font-size: 13px; }
+.actions.alts { align-items: center; font-size: 13px; color: var(--ink-3); margin-top: 6px; }
 .actions .apply { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
 /* styles tab */

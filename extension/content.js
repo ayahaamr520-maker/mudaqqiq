@@ -21,6 +21,11 @@
       analyze: (doc) => ask({ kind: 'spell', doc: { text: doc.text, sentences: doc.sentences.map((s) => ({ text: s.text, start: s.start })) } }),
     },
   };
+  // dictionary spell check: always on (runs in the extension's offscreen page)
+  const DICT = {
+    name: 'Dictionary',
+    analyze: (doc) => ask({ kind: 'dict', doc: { text: doc.text, sentences: doc.sentences.map((s) => ({ text: s.text, start: s.start })) } }),
+  };
   const aiOn = { aiPunct: false, aiSpell: false };
   function syncProviders() {
     if (!engine) return;
@@ -28,6 +33,8 @@
       engine.removeProvider(AI[k]);
       if (aiOn[k]) engine.addProvider(AI[k]);
     }
+    engine.removeProvider(DICT);
+    if (hasExt) engine.addProvider(DICT);
   }
   if (hasExt && chrome.storage?.local) {
     chrome.storage.local.get(aiOn, (s) => { Object.assign(aiOn, s); syncProviders(); check(); });
@@ -37,7 +44,7 @@
       check();
     });
   }
-  const anyAI = () => aiOn.aiPunct || aiOn.aiSpell;
+  const anyAI = () => hasExt; // the dictionary is always on inside the real extension
   let generation = 0;
 
   import(url('engine/engine.js')).then((m) => {

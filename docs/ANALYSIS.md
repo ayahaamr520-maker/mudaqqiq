@@ -30,6 +30,13 @@ Searched the Hub for Arabic GEC / grammar / punctuation / spelling models. Short
 - **int8 caveat:** compressing to 135 MB keeps the *spelling* edits but loses some *grammar* edits («هذه»، «التي»، «إن المعلمين»), which the rules already cover. It also produced one wrong low-confidence edit, hence a 55% confidence floor. Tried per-channel, MatMul-only (284 MB) and others: none better.
 - Measured (docs/EVALUATION.md): fixes **89%** of injected common mistakes (rules alone 30%), with **81%** precision on published text.
 
+## 2c. Typos and words in the wrong place (added 11 Oct)
+
+The spelling model fixes hamza / ة / ى / joined-word errors but not plain typos (a dropped, doubled, swapped or wrong letter), and nothing caught real words in the wrong place («كيف حاك؟» — «حاك» is a real verb).
+
+- **Dictionary (always on, no AI):** 534k Arabic word forms that appear ≥ 5 times in Arabic Wikipedia, ordered by frequency (`web/data/ar-words.txt`, built by `tools/build_lexicon.py`). Unknown words get one-edit candidates (delete / insert / swap / replace / missing space), ranked by a typing prior — doubled key press and dropped letter most likely, then neighbouring keys on the Arabic keyboard and look-alike letters — and by frequency. Words far rarer than a spelling variant («المدرسه» vs «المدرسة») are flagged too.
+- **Context model (optional AI):** AraBERT masked LM, exported so it returns log-probabilities only at the masked positions (fast). For each word it asks how well the word fits; low-scoring words get their one-edit candidates scored, including how well the *next* word fits after each candidate. A real word is flagged only if a candidate beats it by ≥ 5 log-points (correct sentences such as «حاك الخياط الثوب» stay below ~2.5). Two batched model calls per sentence; runs in a Web Worker so typing never freezes.
+
 ## 3. Client-side (as requested)
 
 - transformers.js 4.2.0 + ONNX Runtime Web, model files served next to the site.

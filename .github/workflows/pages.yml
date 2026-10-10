@@ -30,7 +30,7 @@ jobs:
       - name: Run tests
         run: npm test
 
-      # The two ONNX models (~135 MB each) are too big for git, so they are
+      # The three ONNX models (135-185 MB each) are too big for git, so they are
       # rebuilt from the original Hugging Face models and cached between runs.
       - name: Restore AI models from cache
         id: models
@@ -39,6 +39,7 @@ jobs:
           path: |
             web/models/arabic-punctuation/onnx
             web/models/arabic-spelling/onnx
+            web/models/arabic-context/onnx
           key: onnx-models-${{ hashFiles('tools/export_onnx.py') }}
 
       - uses: actions/setup-python@v5

@@ -5,6 +5,8 @@
 
 import { createEngine, CATEGORY_LABEL } from '../engine/engine.js';
 import { MODEL_REMOTE } from '../web/config.js';
+import { createLexicon } from '../engine/spell.js';
+import { createSpellProvider } from '../engine/spell-provider.js';
 
 const engine = createEngine();
 const ignored = new Set();
@@ -19,7 +21,14 @@ let findings = [];
 let mode = 'document';
 let aiProvider = null;
 
-const analyze = (text) => ($('#ai').checked && aiProvider ? engine.analyzeAsync(text, { ignored }) : Promise.resolve(engine.analyze(text, { ignored })));
+let spell = null; // dictionary spell check (no AI), loaded in the background
+
+fetch(new URL('../web/data/ar-words.txt', location.href))
+  .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
+  .then((text) => { spell = createSpellProvider({ lexicon: createLexicon(text) }); engine.addProvider(spell); })
+  .catch(() => {});
+
+const analyze = (text) => (($('#ai').checked && aiProvider) || spell ? engine.analyzeAsync(text, { ignored }) : Promise.resolve(engine.analyze(text, { ignored })));
 
 // The smallest span that contains both the underline and the edit, plus its
 // corrected version — this is what we search for in Word and replace.

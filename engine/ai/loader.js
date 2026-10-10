@@ -11,9 +11,9 @@ export const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/trans
  * @param {object} [o.transformers] an already-imported transformers.js module (extension bundles its own copy)
  * @param {(p:{file, loaded, total})=>void} [o.onProgress]
  */
-export async function loadTokenClassifier({ localPath, remoteId, transformers, onProgress } = {}) {
+export async function loadTokenClassifier({ localPath, remoteId, transformers, onProgress, maskedLM = false } = {}) {
   const T = transformers || (await import(TRANSFORMERS_URL));
-  const { AutoTokenizer, AutoModelForTokenClassification, Tensor, env } = T;
+  const { AutoTokenizer, AutoModelForTokenClassification, AutoModelForMaskedLM, Tensor, env } = T;
 
   let modelId = remoteId;
   if (localPath) {
@@ -36,7 +36,8 @@ export async function loadTokenClassifier({ localPath, remoteId, transformers, o
     if (p.status === 'progress' && onProgress) onProgress({ file: `${modelId}/${p.file}`, loaded: p.loaded, total: p.total });
   };
   const tokenizer = await AutoTokenizer.from_pretrained(modelId, { progress_callback });
-  const model = await AutoModelForTokenClassification.from_pretrained(modelId, { dtype: 'q8', progress_callback });
+  const Model = maskedLM ? AutoModelForMaskedLM : AutoModelForTokenClassification;
+  const model = await Model.from_pretrained(modelId, { dtype: 'q8', progress_callback });
   const [CLS, SEP] = tokenizer.encode('', { add_special_tokens: true });
 
   /** Run the model on token ids (without CLS/SEP); returns per-token probability rows. */
@@ -57,5 +58,5 @@ export async function loadTokenClassifier({ localPath, remoteId, transformers, o
     return rows;
   }
 
-  return { tokenizer, model, run, config: model.config };
+  return { tokenizer, model, run, config: model.config, Tensor, CLS, SEP };
 }

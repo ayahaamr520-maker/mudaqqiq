@@ -22,6 +22,10 @@ const VENDOR = {
 rmSync(join(ext, 'engine'), { recursive: true, force: true });
 cpSync(join(root, 'engine'), join(ext, 'engine'), { recursive: true, filter: (src) => statSync(src).isDirectory() || src.endsWith('.js') });
 
+// dictionary for the spell check
+mkdirSync(join(ext, 'data'), { recursive: true });
+cpSync(join(root, 'web', 'data', 'ar-words.txt'), join(ext, 'data', 'ar-words.txt'));
+
 // icons
 mkdirSync(join(ext, 'icons'), { recursive: true });
 for (const n of [16, 32, 128]) cpSync(join(root, 'word-addin', 'assets', `icon-${n}.png`), join(ext, 'icons', `icon-${n}.png`));
