@@ -309,8 +309,8 @@ The repository has a GitHub Action (`.github/workflows/pages.yml`) that publishe
 3. points the Word add-in at the live address,
 4. publishes the site to **https://ayahaamr520-maker.github.io/mudaqqiq/**.
 
-**One-time setup** (the repository is private, so this needs GitHub Pro):
-1. Upgrade the account to **GitHub Pro**: github.com → Settings → Billing and plans → Upgrade.
+**One-time setup** (already done for ayahaamr520-maker/mudaqqiq):
+1. The repository is public, so GitHub Pages is free.
 2. In the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. Go to the **Actions** tab → **Deploy website** → **Run workflow** (or just push any change).
 
@@ -319,7 +319,7 @@ The first run takes about 10 minutes (building the models); later runs take 1–
 - **Accuracy test:** https://ayahaamr520-maker.github.io/mudaqqiq/eval/
 - **Word add-in for anyone:** download `word-addin/manifest.xml` from https://ayahaamr520-maker.github.io/mudaqqiq/word-addin/manifest.xml and upload it in Word (section 2, steps 3–5). No server on your laptop is needed.
 
-> The code stays private; the published website itself is public (anyone with the link can use it).
+> Anyone with the link can use the website, and the code is public on GitHub.
 
 **Alternative without the Action:** upload the models to Hugging Face and point the site at them (`python tools/upload_to_hf.py YOUR-HF-USERNAME`, then `node tools/configure-public.mjs --hf YOUR-HF-USERNAME --site https://…`). This is only needed if you host the site somewhere other than GitHub Pages.
 
